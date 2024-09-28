@@ -34,7 +34,7 @@ jobs:
         id: generate_tests
         run: |
           mkdir -p tests/generated
-          python scripts/generate_tests.py # Adjust this path based on your file location
+          python scripts/generate_tests.py
 
       - name: Display Generated Tests
         run: |
