@@ -1,0 +1,61 @@
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - release/*
+      - hotfix/*
+  pull_request:
+    branches:
+      - master
+      - develop
+      - release/*
+      - hotfix/*
+  workflow_dispatch:
+
+jobs:
+  enforce-gitflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      - name: Validate branch naming convention
+        run: |
+          BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
+          if [[ ! "$BRANCH_NAME" =~ ^(feature|bugfix|release|hotfix)/ ]]; then
+            echo "Branch name '$BRANCH_NAME' does not follow gitflow conventions."
+            exit 1
+          fi
+
+      - name: Check merge strategy (Pull Request Event)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          if [[ "${{ github.event.pull_request.merge_commit_sha }}" != "" ]]; then
+            echo "Merge commit detected. Only fast-forward merges are allowed."
+            exit 1
+          else
+            echo "Merge strategy is valid."
+            
+      - name: Ensure no direct commits to protected branches (Push Event)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop' }}
+        run: |
+          COMMITS=$(git rev-list ${{ github.event.before }}..${{ github.sha }})
+          for COMMIT in $COMMITS; do
+            PARENT_COUNT=$(git rev-list --parents -n 1 $COMMIT | wc -w)
+            if [[ "$PARENT_COUNT" -gt 2 ]]; then
+              echo "Merge commit detected on protected branch. Only fast-forward or squash merges are allowed."
+              exit 1
+            fi
+          done
+          echo "No direct commits to protected branches detected."
+          
+      - name: Enforce PR titles (Pull Request Event)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if [[ ! "$PR_TITLE" =~ ^(feature|bugfix|release|hotfix)/ ]]; then
+            echo "Pull request title '$PR_TITLE' does not follow gitflow conventions. Please prefix the title with the branch type (e.g., feature/, bugfix/, release/, hotfix/)."
+            exit 1
+          fi
+          echo "Pull request title is valid."
