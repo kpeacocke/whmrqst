@@ -23,7 +23,7 @@ jobs:
         run: ls -R /home/runner/work
 
       - name: List Directory Contents
-        run: ls -R
+        run: ls -lahR
 
       - name: Install Dependencies
         run: |
