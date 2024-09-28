@@ -2,7 +2,7 @@
 
 import os
 
-WIKI_DIR = "wiki"
+REQUIREMENTS_DIR = "docs/requirements"
 TEST_DIR = "tests/generated"
 
 def parse_requirements_from_md(md_file_path):
@@ -30,7 +30,7 @@ def main():
     if not os.path.exists(TEST_DIR):
         os.makedirs(TEST_DIR)
 
-    md_files = [os.path.join(WIKI_DIR, f) for f in os.listdir(WIKI_DIR) if f.endswith(".md")]
+    md_files = [os.path.join(REQUIREMENTS_DIR, f) for f in os.listdir(REQUIREMENTS_DIR) if f.endswith(".md")]
     test_index = 0
 
     for md_file in md_files:
