@@ -19,11 +19,8 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: List All Files and Directories
-        run: ls -R /home/runner/work
-
-      - name: List Directory Contents
-        run: ls -R
+      - name: Make Script Executable (Optional)
+        run: chmod +x scripts/generate_tests.py
 
       - name: Install Dependencies
         run: |
@@ -33,8 +30,7 @@ jobs:
       - name: Generate Test Templates
         id: generate_tests
         run: |
-          mkdir -p tests/generated
-          python scripts/generate_tests.py
+          python scripts/generate_tests.py # Use Python interpreter explicitly
 
       - name: Display Generated Tests
         run: |
