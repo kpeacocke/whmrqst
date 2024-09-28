@@ -3,7 +3,7 @@
 import os
 
 REQUIREMENTS_DIR = "docs/requirements"
-TEST_DIR = "tests/generated"
+TEST_DIR = "tests"
 
 def parse_requirements_from_md(md_file_path):
     # Simple parser for demo purposes. Customize as needed.
