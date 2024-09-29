@@ -28,8 +28,27 @@ jobs:
         id: generate_tests
         run: |
           mkdir -p tests
-          python scripts/generate_tests.py # Correct relative path to the script
+          python scripts/generate_tests.py # Adjust this path if necessary
 
       - name: Display Generated Tests
         run: |
           cat tests/*
+
+      # Optional: Commit the generated tests
+      - name: Commit Generated Tests
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/*
+          git commit -m "Auto-generated tests based on wiki requirements" || echo "No changes to commit"
+
+      # Optional: Create a Pull Request for review
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: "Auto-generated tests based on wiki requirements"
+          branch: auto-generated-tests
+          title: "Auto-Generated Tests for Wiki Requirements"
+          body: |
+            This PR contains auto-generated test templates based on the requirements in the wiki.
+            Please review the generated tests and complete the TODOs.
