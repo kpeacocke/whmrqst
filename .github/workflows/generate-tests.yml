@@ -1,10 +1,13 @@
-name: Generate Tests with Copilot CLI
+name: Generate Tests from Wiki
 
 on:
-  workflow_dispatch:  # Allows manual triggering of this workflow
+  workflow_dispatch:
+  push:
+    paths:
+      - 'docs/**/*.md'
 
 jobs:
-  generate-and-run-copilot:
+  generate-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,40 +19,17 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install GitHub Copilot CLI
+      - name: Install Dependencies
         run: |
-          npm install -g @githubnext/github-copilot-cli
-
-      - name: Authenticate Copilot CLI
-        run: |
-          echo "$GITHUB_TOKEN" | github-copilot-cli auth login --with-token
+          python -m pip install --upgrade pip
+          pip install pytest
 
       - name: Generate Test Templates
+        id: generate_tests
         run: |
-          mkdir -p tests
-          python scripts/generate_tests.py
+          mkdir -p tests/generated
+          python scripts/generate_tests.py # Correct relative path to the script
 
-      - name: Generate Tests with Copilot
+      - name: Display Generated Tests
         run: |
-          cd tests
-          for file in *.py; do
-            echo "Generating code for $file"
-            github-copilot-cli generate --file $file --prompt "Implement test cases for the following requirement based on the template provided." --overwrite
-          done
-
-      - name: Commit Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests
-          git commit -m "Generated tests with Copilot CLI"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
-        with:
-          commit-message: "Generated tests with Copilot CLI"
-          branch: copilot-generated-tests
-          title: "Generated Tests with Copilot CLI"
-          body: |
-            This PR contains auto-generated test cases using GitHub Copilot CLI.
-            Please review the test cases and make any necessary adjustments.
+          cat tests/*
