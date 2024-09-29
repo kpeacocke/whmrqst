@@ -27,7 +27,7 @@ jobs:
       - name: Generate Test Templates
         id: generate_tests
         run: |
-          mkdir -p tests/generated
+          mkdir -p tests
           python scripts/generate_tests.py # Correct relative path to the script
 
       - name: Display Generated Tests
