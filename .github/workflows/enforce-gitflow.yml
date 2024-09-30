@@ -1,13 +1,13 @@
 on:
   push:
     branches:
-      - master
+      - main
       - develop
       - release/*
       - hotfix/*
   pull_request:
     branches:
-      - master
+      - main
       - develop
       - release/*
       - hotfix/*
