@@ -22,7 +22,7 @@ def parse_requirements_from_md(md_file_path):
                 requirements.append(line.strip().replace("## ", ""))
     return requirements
 
-def generate_test_file(requirement, index):
+def generate_test_file(requirement):
     # Create a more detailed template for Copilot suggestions
     test_template = f"""
 import pytest
@@ -37,7 +37,7 @@ import pytest
 # 
 # Replace the placeholder 'assert True' statements with real test cases.
 
-def test_requirement_{index}():
+def test_{sanitize_filename(requirement)}():
     # TODO: Implement test cases based on scenarios listed above
     # Example:
     # assert some_function_call() == expected_result
@@ -53,23 +53,21 @@ def main():
         os.makedirs(TEST_DIR)
 
     md_files = [os.path.join(WIKI_DIR, f) for f in os.listdir(WIKI_DIR) if f.endswith(".md")]
-    test_index = 0
 
     for md_file in md_files:
         requirements = parse_requirements_from_md(md_file)
         for req in requirements:
             # Sanitize the requirement to use it in the filename
             sanitized_filename = sanitize_filename(req)
-            test_content = generate_test_file(req, test_index)
+            test_content = generate_test_file(req)
 
-            # Use the sanitized filename and index for uniqueness
-            test_file_path = os.path.join(TEST_DIR, f"test_{sanitized_filename}_{test_index}.py")
+            # Use the sanitized filename without the numbering
+            test_file_path = os.path.join(TEST_DIR, f"test_{sanitized_filename}.py")
 
             print(f"Generating test for requirement: {req} -> {test_file_path}")
 
             with open(test_file_path, 'w') as test_file:
                 test_file.write(test_content)
-            test_index += 1
 
 if __name__ == "__main__":
     main()
