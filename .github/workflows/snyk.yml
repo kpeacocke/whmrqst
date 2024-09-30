@@ -11,28 +11,11 @@ on:
       - develop
 
 jobs:
-  snyk:
-    name: Snyk Security Scan
+  security:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Snyk Security Scan
+      - uses: actions/checkout@master
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/python@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          pip install snyk
-          snyk auth $SNYK_TOKEN
-          snyk test --file=requirements.txt --severity-threshold=medium
