@@ -29,14 +29,17 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Uncomment this section to run tests and generate a coverage report if needed
       # - name: Run Tests and Generate Coverage Report
-      #  run: |
-      #    pip install pytest pytest-cov
-      #    pytest --cov=./ --cov-report xml
+      #   run: |
+      #     pip install pytest pytest-cov
+      #     pytest --cov=./ --cov-report xml
 
       - name: SonarCloud Scan
+        uses: sonarsource/sonarqube-scan-action@v1.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          pip install sonar-scanner
-          sonar-scanner
+          SONAR_HOST_URL: https://sonarcloud.io
+          # Set any additional Sonar properties as needed
+        with:
+          projectBaseDir: './'  # Adjust this if your source code is in a subdirectory
