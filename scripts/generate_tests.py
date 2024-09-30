@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 import os
+import re
 
 WIKI_DIR = "docs/requirements"
 TEST_DIR = "tests"
+
+def sanitize_filename(filename):
+    """
+    Converts a string into a valid file name by removing unsafe characters.
+    """
+    # Remove non-alphanumeric characters (except spaces), replace spaces with underscores, and lowercase everything.
+    filename = re.sub(r'[^\w\s-]', '', filename).strip().lower()
+    return re.sub(r'[\s]+', '_', filename)
 
 def parse_requirements_from_md(md_file_path):
     # Simple parser for demo purposes. Customize as needed.
@@ -49,8 +58,15 @@ def main():
     for md_file in md_files:
         requirements = parse_requirements_from_md(md_file)
         for req in requirements:
+            # Sanitize the requirement to use it in the filename
+            sanitized_filename = sanitize_filename(req)
             test_content = generate_test_file(req, test_index)
-            test_file_path = os.path.join(TEST_DIR, f"test_{test_index}.py")
+
+            # Use the sanitized filename and index for uniqueness
+            test_file_path = os.path.join(TEST_DIR, f"test_{sanitized_filename}_{test_index}.py")
+
+            print(f"Generating test for requirement: {req} -> {test_file_path}")
+
             with open(test_file_path, 'w') as test_file:
                 test_file.write(test_content)
             test_index += 1
