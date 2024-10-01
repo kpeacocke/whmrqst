@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Inventory</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        #player-info, #inventory, #quests {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .input-group {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Game Dashboard</h1>
+
+    <!-- Player Information Section -->
+    <h2>Player Information</h2>
+    <div id="player-info">
+        <p><strong>ID:</strong> <span id="player-id"></span></p>
+        <p><strong>Health:</strong> <span id="player-health"></span></p>
+        <button onclick="takeDamage()">Take 10 Damage</button>
+        <button onclick="healPlayer()">Heal 10 HP</button>
+    </div>
+
+    <!-- Inventory Section -->
+    <h2>Inventory</h2>
+    <div id="inventory">
+        <ul id="inventory-list"></ul>
+        <div class="input-group">
+            <input type="text" id="item-name" placeholder="Item Name">
+            <input type="number" id="item-quantity" value="1" min="1" placeholder="Quantity">
+            <button onclick="addItem()">Add Item</button>
+        </div>
+    </div>
+
+    <!-- Quests Section -->
+    <h2>Quests</h2>
+    <div id="quests">
+        <ul id="quests-list"></ul>
+    </div>
+
+    <script>
+        const playerId = '1234';  // Hard-coded player ID (you can replace with dynamic logic later)
+
+        // Fetch player info and update the UI
+        function getPlayer() {
+            fetch(`/player/${playerId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        document.getElementById('player-id').textContent = data.player_id;
+                        document.getElementById('player-health').textContent = data.health;
+                        updateInventory(data.inventory);
+                        updateQuests(data.quests);
+                    }
+                })
+                .catch(error => console.error('Error fetching player data:', error));
+        }
+
+        // Update inventory in the UI
+        function updateInventory(items) {
+            const inventoryList = document.getElementById('inventory-list');
+            inventoryList.innerHTML = '';  // Clear the inventory list
+            items.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${item.name} (x${item.quantity})`;
+                inventoryList.appendChild(listItem);
+            });
+        }
+
+        // Update quests in the UI
+        function updateQuests(quests) {
+            const questsList = document.getElementById('quests-list');
+            questsList.innerHTML = '';  // Clear the quest list
+            quests.forEach(quest => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${quest.name} - ${quest.status}`;
+                questsList.appendChild(listItem);
+            });
+        }
+
+        // Add an item to the player's inventory
+        function addItem() {
+            const itemName = document.getElementById('item-name').value;
+            const itemQuantity = parseInt(document.getElementById('item-quantity').value);
+
+            if (!itemName || itemQuantity <= 0) {
+                alert('Please enter a valid item name and quantity.');
+                return;
+            }
+
+            fetch(`/player/${playerId}/add_item`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ item_name: itemName, quantity: itemQuantity })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    getPlayer();  // Refresh the player info after adding the item
+                }
+            })
+            .catch(error => console.error('Error adding item:', error));
+        }
+
+        // Take 10 damage
+        function takeDamage() {
+            fetch(`/player/${playerId}/take_damage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ damage: 10 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    getPlayer();  // Refresh the player info after taking damage
+                }
+            })
+            .catch(error => console.error('Error taking damage:', error));
+        }
+
+        // Heal the player (similar to taking damage, but you can add an endpoint for healing in the backend)
+        function healPlayer() {
+            // You might need to create an endpoint like /player/<player_id>/heal for this
+            fetch(`/player/${playerId}/heal`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ heal: 10 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    getPlayer();  // Refresh the player info after healing
+                }
+            })
+            .catch(error => console.error('Error healing player:', error));
+        }
+
+        // Fetch player info on page load
+        window.onload = getPlayer;
+    </script>
+</body>
+</html>
