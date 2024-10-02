@@ -1,0 +1,22 @@
+# .github/settings.yml
+
+branches:
+  main:
+    protected: true
+    required_pull_request_reviews:
+      required_approving_review_count: 1
+    enforce_admins: true
+    required_status_checks:
+      strict: true
+      contexts:
+        - "enforce-gitflow"
+
+  develop:
+    protected: true
+    required_pull_request_reviews:
+      required_approving_review_count: 1
+    enforce_admins: true
+    required_status_checks:
+      strict: true
+      contexts:
+        - "enforce-gitflow"

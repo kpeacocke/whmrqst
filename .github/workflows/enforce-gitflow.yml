@@ -26,7 +26,8 @@ jobs:
           if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "develop" ]]; then
             echo "Branch '$BRANCH_NAME' is a permanent branch and allowed."
           elif [[ ! "$BRANCH_NAME" =~ ^(feature|bugfix|release|hotfix)/ ]]; then
-            echo "Branch name '$BRANCH_NAME' does not follow gitflow conventions."
+            echo "Branch name '$BRANCH_NAME' does not follow GitFlow conventions."
+            echo "Please rename your branch to start with 'feature/', 'bugfix/', 'release/', or 'hotfix/'."
             exit 1
           fi
 
@@ -36,6 +37,25 @@ jobs:
           echo "Direct commits to 'main' or 'develop' are not allowed. Please use pull requests."
           exit 1
 
+      # Add the Automated PR Title step here
+      - name: Automatically set PR title based on branch name
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
+          PR_TITLE="${BRANCH_NAME/feature\//Feature: }"
+          PR_TITLE="${PR_TITLE/bugfix\//Bugfix: }"
+          PR_TITLE="${PR_TITLE/release\//Release: }"
+          PR_TITLE="${PR_TITLE/hotfix\//Hotfix: }"
+          gh pr edit ${{ github.event.pull_request.number }} --title "$PR_TITLE"
+
+      - name: Ensure squash merges for feature branches
+        if: ${{ github.event_name == 'pull_request' && contains(github.ref, 'feature/') }}
+        run: |
+          if [[ "${{ github.event.pull_request.merge_commit_sha }}" != "" ]]; then
+            echo "Squash merges are required for feature branches."
+            exit 1
+          fi
+
       - name: Check merge strategy (Pull Request Event)
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -44,7 +64,7 @@ jobs:
             exit 1
           else
             echo "Merge strategy is valid."
-            
+
       - name: Ensure no direct commits to protected branches (Push Event)
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') }}
         run: |
@@ -63,7 +83,7 @@ jobs:
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
           if [[ ! "$PR_TITLE" =~ ^(feature|bugfix|release|hotfix)/ ]]; then
-            echo "Pull request title '$PR_TITLE' does not follow gitflow conventions. Please prefix the title with the branch type (e.g., feature/, bugfix/, release/, hotfix/)."
+            echo "Pull request title '$PR_TITLE' does not follow GitFlow conventions. Please prefix the title with the branch type (e.g., feature/, bugfix/, release/, hotfix/)."
             exit 1
           fi
           echo "Pull request title is valid."
