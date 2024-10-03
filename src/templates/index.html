@@ -3,69 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Inventory</title>
+    <title>Warhammer Quest Character Sheet</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Cinzel+Decorative:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        /* Aged paper background */
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+            font-family: 'Cinzel', serif;  /* Use a fantasy-style font */
+            background: url('/static/images/aged-paper-background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        /* Container with semi-transparent background */
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.8); /* Slight transparency to show paper texture */
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border: 2px solid #8b4513; /* Dark brown border */
+        }
+
+        /* Headers styled like Warhammer Quest sheet */
+        h1, h2 {
+            font-family: 'Cinzel Decorative', serif;  /* Use a decorative medieval font */
+            text-align: center;
+            color: #4b2e04;  /* Dark brown to match the character sheet */
+            text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.6);
+            border-bottom: 2px solid #8b4513;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
         }
 
         h1 {
-            color: #333;
+            font-size: 48px;
+            letter-spacing: 2px;
         }
 
-        #player-info, #inventory, #quests {
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin: 10px 0;
+        h2 {
+            font-size: 32px;
+            letter-spacing: 1px;
+        }
+
+        /* Sections styled as hand-drawn boxes */
+        .section {
+            border: 2px solid #8b4513;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.6);  /* More transparency for inner sections */
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        ul li {
+            font-family: 'Cinzel', serif;
+            font-size: 18px;
+            padding: 5px 0;
         }
 
         button {
-            padding: 5px 10px;
-            background-color: #4CAF50;
+            background-color: #8b4513;
+            border: 2px solid #4b2e04;
             color: white;
-            border: none;
+            padding: 10px 20px;
             cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
         }
 
         button:hover {
-            background-color: #45a049;
+            background-color: #4b2e04;
         }
 
-        .input-group {
-            margin: 10px 0;
+        /* Styled inputs */
+        input[type="text"], input[type="number"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #8b4513;
+            border-radius: 5px;
+            background-color: #f5f5dc;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
 
-    <h1>Game Dashboard</h1>
+    <div class="container">
+        <h1>Warhammer Quest</h1>
 
-    <!-- Player Information Section -->
-    <h2>Player Information</h2>
-    <div id="player-info">
-        <p><strong>ID:</strong> <span id="player-id"></span></p>
-        <p><strong>Health:</strong> <span id="player-health"></span></p>
-        <button onclick="takeDamage()">Take 10 Damage</button>
-        <button onclick="healPlayer()">Heal 10 HP</button>
-    </div>
-
-    <!-- Inventory Section -->
-    <h2>Inventory</h2>
-    <div id="inventory">
-        <ul id="inventory-list"></ul>
-        <div class="input-group">
-            <input type="text" id="item-name" placeholder="Item Name">
-            <input type="number" id="item-quantity" value="1" min="1" placeholder="Quantity">
-            <button onclick="addItem()">Add Item</button>
+        <!-- Player Information Section -->
+        <div class="section">
+            <h2>Player Information</h2>
+            <p><strong>ID:</strong> <span id="player-id"></span></p>
+            <p><strong>Health:</strong> <span id="player-health"></span></p>
+            <button onclick="takeDamage()">Take 10 Damage</button>
+            <button onclick="healPlayer()">Heal 10 HP</button>
         </div>
-    </div>
 
-    <!-- Quests Section -->
-    <h2>Quests</h2>
-    <div id="quests">
-        <ul id="quests-list"></ul>
+        <!-- Inventory Section -->
+        <div class="section">
+            <h2>Inventory</h2>
+            <ul id="inventory-list"></ul>
+            <div>
+                <input type="text" id="item-name" placeholder="Item Name">
+                <input type="number" id="item-quantity" value="1" min="1">
+                <button onclick="addItem()">Add Item</button>
+            </div>
+        </div>
+
+        <!-- Quests Section -->
+        <div class="section">
+            <h2>Quests</h2>
+            <ul id="quests-list"></ul>
+        </div>
     </div>
 
     <script>
@@ -160,7 +224,6 @@
 
         // Heal the player (similar to taking damage, but you can add an endpoint for healing in the backend)
         function healPlayer() {
-            // You might need to create an endpoint like /player/<player_id>/heal for this
             fetch(`/player/${playerId}/heal`, {
                 method: 'POST',
                 headers: {
