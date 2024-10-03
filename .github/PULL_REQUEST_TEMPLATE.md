@@ -1,9 +1,10 @@
 # Pull Request Template
 
-### Description
+## Description
+
 Provide a detailed description of the changes in this pull request.
 
-### Checklist
+## Checklist
 
 - [ ] My branch is named according to GitFlow conventions (`feature/`, `bugfix/`, `release/`, `hotfix/`).
 - [ ] This pull request targets the `develop` branch.
