@@ -7,8 +7,9 @@ mongo = PyMongo()
 def create_app():
     app = Flask(__name__)
 
-    # Load configuration from the config directory
-    app.config.from_pyfile('../../config/config.py')
+    # Define the path to the config file dynamically
+    config_path = os.path.join(os.path.dirname(__file__), '../../config/config.py')
+    app.config.from_pyfile(config_path)
 
     # Initialize MongoDB
     mongo.init_app(app)

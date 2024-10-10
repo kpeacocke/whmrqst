@@ -6,6 +6,9 @@ services:
       dockerfile: ./docker/Dockerfile
     ports:
       - 5000:5000
+    environment:
+      - FLASK_APP=/app/src/run.py  # Updated path to reflect Docker structure
+      - FLASK_ENV=development
 
   mongo:
     image: mongo:latest
