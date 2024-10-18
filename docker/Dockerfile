@@ -1,5 +1,5 @@
 # Dockerfile
-FROM python:3.9-slim-buster
+FROM python:3-slim
 
 # Set environment variables for optimal behavior and security
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -12,9 +12,6 @@ WORKDIR /app
 # Install dependencies
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --no-cache-dir -r requirements.txt
-
-# TEMP
-RUN apt-get update && apt-get install -y curl
 
 # Copy the application source code
 COPY src /app/src
