@@ -5,7 +5,7 @@ from flask_pymongo import PyMongo
 mongo = PyMongo()
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder="../static", template_folder="../templates")
 
     # Define the path to the config file dynamically
     config_path = os.path.join(os.path.dirname(__file__), '../../config/config.py')

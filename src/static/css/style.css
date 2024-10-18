@@ -1,31 +1,31 @@
-/* Aged paper background */
+/* Body styling with aged paper background */
 body {
-    font-family: 'Cinzel', serif;  /* Use a fantasy-style font like Cinzel */
+    font-family: 'Cinzel', serif;
     background: url('/static/images/aged-paper-background.png') no-repeat center center fixed;
     background-size: cover;
-    color: #333;  /* Dark, readable text */
+    color: #333;
     margin: 0;
     padding: 20px;
     line-height: 1.6;
 }
 
-/* General container for content */
+/* Container styling */
 .container {
     width: 100%;
     max-width: 1000px;
     margin: 0 auto;
     padding: 20px;
-    background: rgba(255, 255, 255, 0.8); /* Slight transparency to show paper texture */
+    background: rgba(255, 255, 255, 0.8);
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    border: 2px solid #8b4513; /* Dark brown border */
+    border: 2px solid #8b4513;
 }
 
-/* Headers styled like Warhammer Quest sheet */
+/* Header styling */
 h1, h2 {
-    font-family: 'Cinzel Decorative', serif;  /* Use a decorative medieval font */
+    font-family: 'Cinzel Decorative', serif;
     text-align: center;
-    color: #4b2e04;  /* Dark brown to match the character sheet */
+    color: #4b2e04;
     text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.6);
     border-bottom: 2px solid #8b4513;
     padding-bottom: 10px;
@@ -42,27 +42,28 @@ h2 {
     letter-spacing: 1px;
 }
 
-/* Sections styled as hand-drawn boxes */
+/* Section styling */
 .section {
     border: 2px solid #8b4513;
     padding: 15px;
     margin: 20px 0;
     border-radius: 8px;
-    background-color: rgba(255, 255, 255, 0.6);  /* More transparency for inner sections */
+    background-color: rgba(255, 255, 255, 0.6);
     box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
 }
 
+/* List styling */
 ul {
     list-style-type: none;
     padding: 0;
 }
 
 ul li {
-    font-family: 'Cinzel', serif;
     font-size: 18px;
     padding: 5px 0;
 }
 
+/* Button styling */
 button {
     background-color: #8b4513;
     border: 2px solid #4b2e04;
@@ -79,7 +80,7 @@ button:hover {
     background-color: #4b2e04;
 }
 
-/* Styled inputs */
+/* Input styling */
 input[type="text"], input[type="number"] {
     padding: 10px;
     font-size: 16px;

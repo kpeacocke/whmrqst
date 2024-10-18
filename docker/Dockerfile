@@ -1,28 +1,31 @@
-# For more information, please refer to https://aka.ms/vscode-docker-python
-FROM python:3-slim
+# Dockerfile
+FROM python:3.9-slim-buster
 
-EXPOSE 5000
-
-# Keeps Python from generating .pyc files in the container
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV FLASK_APP=/app/src/run.py
-
-# Turns off buffering for easier container logging
-ENV PYTHONUNBUFFERED=1
+# Set environment variables for optimal behavior and security
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=src/app:create_app
 
 # Set the working directory
 WORKDIR /app
 
-# Install pip requirements
-COPY ../requirements.txt .
-RUN python -m pip install --no-cache-dir  -r requirements.txt
+# Install dependencies
+COPY requirements.txt /app/requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
-COPY / /app
+# TEMP
+RUN apt-get update && apt-get install -y curl
 
-# Creates a non-root user with an explicit UID and adds permission to access the /app folder
-# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
+# Copy the application source code
+COPY src /app/src
+COPY config /app/config
+
+# Creates a non-root user and grants permission to access /app
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser
 
-# Use Flask's built-in development server
+# Expose the internal application port
+EXPOSE 5000
+
+# Use Flask's built-in development server for simplicity
 CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]

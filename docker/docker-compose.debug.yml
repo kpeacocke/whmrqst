@@ -1,25 +1,41 @@
 services:
-  whmrqst:
+  whmrqst_debug:
     image: whmrqst
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
-    command: ["sh", "-c", "pip install debugpy -t /tmp && python /tmp/debugpy --wait-for-client --listen 0.0.0.0:5678 -m flask run --no-debugger --no-reload --host 0.0.0.0 --port 5000"]
+    command: ["sh", "-c", "pip install debugpy -t /tmp && python -Xfrozen_modules=off /tmp/debugpy --wait-for-client --listen 0.0.0.0:5679 -m flask run --no-debugger --no-reload --host 0.0.0.0 --port 5000"]
     ports:
-      - 5000:5000
-      - 5678:5678
+      - "${DEBUG_PORT}:5000"
+      - "5679:5679"
     environment:
-      - FLASK_APP=/app/src/run.py     # Path to the app file inside the Docker container
-      - FLASK_ENV=development          # Development environment
+      - FLASK_APP=${FLASK_APP:-src/app:create_app}
+      - FLASK_ENV=development
+      - PYDEVD_DISABLE_FILE_VALIDATION=1
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_HOST=mongo_debug
+      - MONGO_PORT=${MONGO_PORT}
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
-      - ../:/app                         # Bind mount to allow live code updates
+      - ../:/app
+    networks:
+      - internal_network_debug
 
-  mongo:
+  mongo_debug:
     image: mongo:latest
-    ports:
-      - 27017:27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
-      - mongo_data:/data/db
+      - mongo_data_debug:/data/db
+    networks:
+      - internal_network_debug
 
 volumes:
-  mongo_data:
+  mongo_data_debug:
+
+networks:
+  internal_network_debug:
+    internal: true

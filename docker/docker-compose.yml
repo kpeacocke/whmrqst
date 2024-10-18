@@ -1,21 +1,35 @@
 services:
-  whmrqst:
+  whmrqst_prod:
     image: whmrqst
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
     ports:
-      - 5000:5000
+      - "80:5000"
     environment:
-      - FLASK_APP=/app/src/run.py  # Updated path to reflect Docker structure
-      - FLASK_ENV=development
+      - FLASK_ENV=production
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_HOST=mongo_prod
+      - MONGO_PORT=${MONGO_PORT}
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - SECRET_KEY=${SECRET_KEY}
+    networks:
+      - internal_network_prod
 
-  mongo:
+  mongo_prod:
     image: mongo:latest
-    ports:
-      - 27017:27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
-      - mongo_data:/data/db
+      - mongo_data_prod:/data/db
+    networks:
+      - internal_network_prod
 
 volumes:
-  mongo_data:
+  mongo_data_prod:
+
+networks:
+  internal_network_prod:
+    internal: true
