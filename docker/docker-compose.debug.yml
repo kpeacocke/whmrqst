@@ -4,7 +4,7 @@ services:
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
-    command: ["sh", "-c", "pip install debugpy -t /tmp && python -Xfrozen_modules=off /tmp/debugpy --wait-for-client --listen 0.0.0.0:5679 -m flask run --no-debugger --no-reload --host 0.0.0.0 --port 5000"]
+    command: ["sh", "-c", "pip install debugpy -t /tmp && python -Xfrozen_modules=off /tmp/debugpy --wait-for-client --listen 0.0.0.0:5679 -m flask run --host=0.0.0.0 --port=5000"]
     ports:
       - "${DEBUG_PORT}:5000"
       - "5679:5679"
@@ -22,6 +22,7 @@ services:
       - ../:/app
     networks:
       - internal_network_debug
+      - default
 
   mongo_debug:
     image: mongo:latest
