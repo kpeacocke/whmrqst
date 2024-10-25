@@ -16,13 +16,11 @@ RUN python -m pip install --no-cache-dir -r requirements.txt
 # Copy the application source code
 COPY src /app/src
 COPY config /app/config
+COPY scripts/db_seed.py /app/scripts/db_seed.py
 
-# Creates a non-root user and grants permission to access /app
+# Creates a non-root user with an explicit UID and adds permission to access the /app folder
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser
 
-# Expose the internal application port
-EXPOSE 5000
-
-# Use Flask's built-in development server for simplicity
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Command to run both the seeding script and the Flask server
+CMD ["sh", "-c", "python /app/scripts/db_seed.py && flask run --host=0.0.0.0 --port=5000"]

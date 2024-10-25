@@ -53,3 +53,17 @@ def player_take_damage(player_id):
 
     save_player(player.to_dict())
     return jsonify(player.to_dict())
+
+@main.route("/player/<player_id>/heal", methods=["POST"])
+def player_heal(player_id):
+    """Heal the player."""
+    player_data = get_player(player_id)
+    if not player_data:
+        return jsonify({"error": PLAYER_NOT_FOUND}), 404
+
+    player = Player.from_dict(player_data)
+    heal_amount = request.json.get("heal", 10)
+    player.heal(heal_amount)
+
+    save_player(player.to_dict())
+    return jsonify(player.to_dict())
