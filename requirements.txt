@@ -5,7 +5,7 @@ Flask==3.1.0
 Flask-PyMongo==3.0.1
 iniconfig==2.0.0
 itsdangerous==2.2.0
-Jinja2==3.1.5
+Jinja2==3.1.6
 Jinja2==3.1.6
 MarkupSafe==3.0.2
 packaging==24.2
