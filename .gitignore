@@ -161,3 +161,65 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
+
+# Additional Python and development files
+.python_history
+*.swp
+*.swo
+*.tmp
+.cache/
+.pytest_cache/
+.coverage.*
+coverage.xml
+*.cover
+htmlcov/
+
+# Environment files
+.env.*
+!.env.example
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.bak
+*.backup
+*.old
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.docker/
+
+# Node.js (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Secrets
+secrets/
+*.key
+*.pem

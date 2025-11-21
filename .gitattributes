@@ -1,0 +1,64 @@
+# Set default behavior to automatically normalize line endings
+* text=auto eol=lf
+
+# Python files
+*.py text eol=lf
+*.pyc binary
+*.pyo binary
+
+# Web files
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+
+# Markdown and documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Configuration files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.conf text eol=lf
+
+# Docker files
+Dockerfile* text eol=lf
+docker-compose*.yml text eol=lf
+*.dockerfile text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf  # SVG is XML, treat as text
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.exe binary
+*.dll binary
+
+# Database files
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Logs
+*.log text eol=lf
+
+# Lock files
+requirements.txt text eol=lf
+Pipfile.lock text eol=lf
+poetry.lock text eol=lf
+
+# Git merge driver for requirements files
+requirements*.txt merge=union
+Pipfile merge=union
