@@ -1,0 +1,41 @@
+{% if party %}
+<div class="stat-block">
+    <div><span>Party:</span> {{ party.name }}</div>
+    <div><span>Gold:</span> {{ party.gold }}</div>
+    <div><span>Supplies:</span> {{ party.supplies }}</div>
+    <div><span>Morale:</span> {{ party.morale }}</div>
+</div>
+<h3 class="heading-md">Heroes</h3>
+<ul class="record-list">
+    {% for hero in party.heroes.all %}
+    <li>
+        <strong>{{ hero.name }}</strong>
+        <span>{{ hero.get_archetype_display }} · L{{ hero.level }}</span>
+        <span>HP {{ hero.current_health }}/{{ hero.max_health }}</span>
+        {% with skills=hero.hero_skills.select_related %}
+        {% if skills %}
+        <ul class="skill-list">
+            {% for hs in skills %}
+            <li>{{ hs.skill_def.name }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+    </li>
+    {% empty %}
+    <li>No heroes in party.</li>
+    {% endfor %}
+</ul>
+{% with items=party.inventory_items.select_related %}
+{% if items %}
+<h3 class="heading-md">Inventory</h3>
+<ul class="record-list">
+    {% for item in items|slice:":20" %}
+    <li>{{ item.item_def.name }} <span>×{{ item.quantity }}</span></li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endwith %}
+{% else %}
+<p>No party yet.</p>
+{% endif %}

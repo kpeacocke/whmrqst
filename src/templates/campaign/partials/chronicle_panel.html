@@ -1,0 +1,11 @@
+<ul class="record-list chronicle-list">
+    {% for step in recent_steps %}
+    <li>
+        <a href="{% url 'campaign:step_log_detail' step_id=step.id %}">{{ step.step_type }} / {{ step.action_type }}</a>
+        <span>{{ step.narrative|truncatechars:80 }}</span>
+        <span>{{ step.created_at }}</span>
+    </li>
+    {% empty %}
+    <li>No events logged yet.</li>
+    {% endfor %}
+</ul>

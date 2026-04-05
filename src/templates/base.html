@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en-au">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Quest Between{% endblock %}</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+    <header class="top-nav">
+        <div class="brand">Quest Between</div>
+        <nav>
+            <a href="/">Campaigns</a>
+            <a href="/gm/">GM Console</a>
+            <a href="/admin/">Admin</a>
+        </nav>
+    </header>
+    <main class="shell">
+        {% if messages %}
+        <div class="message-list">
+            {% for message in messages %}
+            <div class="message message--{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ campaign.name }} · Quest Between{% endblock %}
+
+{% block content %}
+<div class="three-column">
+    <aside class="panel side-panel">
+        <h2 class="heading-lg">Party</h2>
+        {% include "campaign/partials/party_panel.html" %}
+        <hr>
+        <h3 class="heading-md">Create Party</h3>
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <input type="hidden" name="create_type" value="party">
+            {{ party_form.as_p }}
+            <button type="submit" class="btn">Add Party</button>
+        </form>
+
+        <h3 class="heading-md">Create Hero</h3>
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <input type="hidden" name="create_type" value="hero">
+            {{ hero_form.as_p }}
+            <button type="submit" class="btn">Add Hero</button>
+        </form>
+    </aside>
+
+    <section class="panel panel-elevated main-panel">
+        <h1 class="heading-xl">{{ campaign.name }}</h1>
+        <p class="lede">Week {{ campaign.current_week }} · Day {{ campaign.current_day }} · Seed {{ campaign.seed }}</p>
+
+        <div class="action-grid">
+            <article class="card">
+                <h3 class="heading-md">Expedition</h3>
+                <form method="post" action="{% url 'campaign:resolve_expedition_run' campaign_id=campaign.id %}" class="stacked-form">
+                    {% csrf_token %}
+                    {{ expedition_form.as_p }}
+                    <button type="submit" class="btn btn-primary">Run Expedition</button>
+                </form>
+                {% if latest_expedition %}
+                <p class="small-note">
+                    Last: {{ latest_expedition.expedition_def.name }} · {{ latest_expedition.get_risk_level_display }}
+                </p>
+                {% endif %}
+            </article>
+
+            <article class="card">
+                <h3 class="heading-md">Travel Hazards</h3>
+                <form method="post" action="{% url 'campaign:resolve_travel' campaign_id=campaign.id %}" class="stacked-form">
+                    {% csrf_token %}
+                    {{ travel_form.as_p }}
+                    <button type="submit" class="btn btn-primary">Resolve Travel</button>
+                </form>
+            </article>
+
+            <article class="card">
+                <h3 class="heading-md">Settlement Action</h3>
+                <form method="post" action="{% url 'campaign:resolve_hero_action' campaign_id=campaign.id %}" class="stacked-form">
+                    {% csrf_token %}
+                    {{ hero_action_form.as_p }}
+                    <button type="submit" class="btn btn-primary">Resolve Action</button>
+                </form>
+            </article>
+
+            <article class="card">
+                <h3 class="heading-md">Settlement Shop</h3>
+                <form method="post" action="{% url 'campaign:resolve_shop_transaction' campaign_id=campaign.id %}" class="stacked-form">
+                    {% csrf_token %}
+                    {{ shop_form.as_p }}
+                    <button type="submit" class="btn btn-primary">Apply Transaction</button>
+                </form>
+            </article>
+        </div>
+
+        {% include "campaign/partials/event_card.html" %}
+    </section>
+
+    <aside class="panel side-panel">
+        <h2 class="heading-lg">Chronicle</h2>
+        {% include "campaign/partials/chronicle_panel.html" %}
+    </aside>
+</div>
+{% endblock %}

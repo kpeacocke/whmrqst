@@ -1,35 +1,51 @@
 services:
-  whmrqst_prod:
-    image: whmrqst
+  web:
+    image: whmrqst-django
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
+    command: >
+      sh -c "python manage.py migrate &&
+      python manage.py runserver 0.0.0.0:8000"
     ports:
-      - "${PROD_PORT}:5000"
+      - "${PROD_PORT:-8000}:8000"
     environment:
-      - FLASK_ENV=production
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-      - MONGO_HOST=mongo_prod
-      - MONGO_PORT=${MONGO_PORT}
-      - MONGO_DB_NAME=${MONGO_DB_NAME}
-      - SECRET_KEY=${SECRET_KEY}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-false}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-change-me-in-production}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-questbetween}
+      - POSTGRES_USER=${POSTGRES_USER:-questbetween}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-questbetween}
+      - POSTGRES_CONNECT_TIMEOUT=${POSTGRES_CONNECT_TIMEOUT:-5}
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - internal_network_prod
       - default
 
-  mongo_prod:
-    image: mongo:latest
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-questbetween}
+      - POSTGRES_USER=${POSTGRES_USER:-questbetween}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-questbetween}
     volumes:
-      - mongo_data_prod:/data/db
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-questbetween} -d ${POSTGRES_DB:-questbetween}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - internal_network_prod
 
 volumes:
-  mongo_data_prod:
+  postgres_data_prod:
 
 networks:
   internal_network_prod:

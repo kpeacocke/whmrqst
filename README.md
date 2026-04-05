@@ -4,9 +4,10 @@ This repository hosts the codebase for a game developed using Python with Flask/
 
 ## Project Overview
 
-- **Backend Framework**: Flask/Django for the server-side logic.
-- **Database**: MongoDB for data storage and management.
-- **Game Logic**: Custom game rules and mechanics implemented in Python.
+- **Backend Framework**: Django for the server-side logic and ORM.
+- **Database**: PostgreSQL for data storage and ACID transaction safety.
+- **Deployment**: Docker Compose for local development and production runtime.
+- **Game Logic**: Deterministic simulation service with full audit logging via StepLog.
 
 ## Getting Started
 
@@ -14,54 +15,85 @@ This repository hosts the codebase for a game developed using Python with Flask/
 
 Ensure you have the following installed on your system:
 
-- Python 3.8 or higher
-- MongoDB
-- pipenv (for Python dependency management)
+- Docker and Docker Compose
+- Python 3.12 or higher (for local development outside containers)
+- Git
 
-### Installation Steps
+### Quick Start with Docker Compose
+
+The simplest way to run the application is via Docker Compose. This automatically sets up Django, PostgreSQL, and all dependencies.
 
 1. **Clone the Repository**
-
-   Clone this repository to your local machine:
 
    ```bash
    git clone https://github.com/yourusername/yourgame.git
    cd yourgame
    ```
 
-2. **Set Up Virtual Environment and Dependencies**
-
-   Install dependencies using pipenv:
-
-   ```bash
-   pipenv install
-   ```
-
-3. **Configure Environment Variables**
-
-   Copy the sample environment file and update it with your settings:
+2. **Prepare Environment**
 
    ```bash
    cp .env.example .env
    ```
 
-4. **Start the Application**
+3. **Start the Application Stack**
 
-   Run the application using Flask or Django commands:
-
+   **Production mode:**
    ```bash
-   pipenv run flask run
+   docker compose -f docker/docker-compose.yml up -d
    ```
 
-   or for Django:
-
+   **Debug mode** (with debugpy on port 5679):
    ```bash
-   pipenv run python manage.py runserver
+   docker compose -f docker/docker-compose.debug.yml up -d
    ```
 
-5. **Access the Application**
+4. **Access the Application**
 
-   Open your browser and navigate to [http://localhost:5000](http://localhost:5000) (Flask) or [http://localhost:8000](http://localhost:8000) (Django).
+   Open your browser and navigate to [http://localhost:8000](http://localhost:8000).
+
+5. **Stop the Stack**
+
+   ```bash
+   docker compose -f docker/docker-compose.yml down
+   # or for debug:
+   docker compose -f docker/docker-compose.debug.yml down
+   ```
+
+### Local Development (Without Docker)
+
+If you prefer to develop outside containers:
+
+1. **Set Up Virtual Environment and Dependencies**
+
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate  # On Windows
+   # or: source .venv/bin/activate  # On macOS/Linux
+   pip install -r requirements.txt
+   ```
+
+2. **Configure Environment Variables**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Update `.env` with your local PostgreSQL credentials if running the database separately.
+
+3. **Run Migrations**
+
+   ```bash
+   python manage.py migrate
+   ```
+
+4. **Start the Development Server**
+
+   ```bash
+   python manage.py runserver
+   ```
+
+   The app will be available at [http://localhost:8000](http://localhost:8000).
 
 ## Development Guidelines
 
@@ -78,13 +110,44 @@ Ensure you have the following installed on your system:
 
 ### Testing
 
-Tests are located in the `tests/` directory. To run tests, use:
+Tests are located in the `tests/` directory. To run tests:
 
+**With Docker:**
 ```bash
-pipenv run pytest
+docker compose -f docker/docker-compose.yml exec web python manage.py test
+```
+
+**Locally:**
+```bash
+python manage.py test
 ```
 
 Ensure all tests pass before submitting a pull request.
+
+### Security Scanning (Snyk)
+
+You can run Snyk checks locally (Windows PowerShell) using Docker:
+
+1. Create a Snyk account and API token.
+2. Set your token in the current shell:
+
+   ```powershell
+   $env:SNYK_TOKEN="your-token"
+   ```
+
+3. Run the scanner script:
+
+   ```powershell
+   .\scripts\snyk_scan.ps1
+   ```
+
+   Optional severity threshold:
+
+   ```powershell
+   .\scripts\snyk_scan.ps1 -SeverityThreshold medium
+   ```
+
+CI also runs dependency and code scans via `.github/workflows/snyk.yml` when `SNYK_TOKEN` is configured in repository secrets.
 
 ## Security
 

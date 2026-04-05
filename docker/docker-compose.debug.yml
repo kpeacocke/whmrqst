@@ -1,44 +1,56 @@
 services:
-  whmrqst_debug:
-    image: whmrqst
+  web_debug:
+    image: whmrqst-django-debug
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
     command: >
-      sh -c "pip install debugpy -t /tmp &&
-         python scripts/db_seed.py &&
-         python -Xfrozen_modules=off /tmp/debugpy --listen 0.0.0.0:5679 --wait-for-client -m flask run --host=0.0.0.0 --port=5000"
+      sh -c "python -m pip install --no-cache-dir debugpy &&
+      python manage.py migrate &&
+      python -Xfrozen_modules=off -m debugpy --listen 0.0.0.0:5679 --wait-for-client manage.py runserver 0.0.0.0:8000"
     ports:
-      - "${DEBUG_PORT}:5000"
+      - "${DEBUG_PORT:-8000}:8000"
       - "5679:5679"
     environment:
-      - FLASK_APP=${FLASK_APP:-src/app:create_app}
-      - FLASK_ENV=development
+      - DJANGO_DEBUG=true
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-local-dev-only}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
       - PYDEVD_DISABLE_FILE_VALIDATION=1
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-      - MONGO_HOST=mongo_debug
-      - MONGO_PORT=${MONGO_PORT}
-      - MONGO_DB_NAME=${MONGO_DB_NAME}
-      - SECRET_KEY=${SECRET_KEY}
+      - POSTGRES_HOST=db_debug
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-questbetween}
+      - POSTGRES_USER=${POSTGRES_USER:-questbetween}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-questbetween}
+      - POSTGRES_CONNECT_TIMEOUT=${POSTGRES_CONNECT_TIMEOUT:-5}
+    depends_on:
+      db_debug:
+        condition: service_healthy
     volumes:
       - ../:/app
     networks:
       - internal_network_debug
       - default
 
-  mongo_debug:
-    image: mongo:latest
+  db_debug:
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-questbetween}
+      - POSTGRES_USER=${POSTGRES_USER:-questbetween}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-questbetween}
     volumes:
-      - mongo_data_debug:/data/db
+      - postgres_data_debug:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-questbetween} -d ${POSTGRES_DB:-questbetween}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - internal_network_debug
 
 volumes:
-  mongo_data_debug:
+  postgres_data_debug:
 
 networks:
   internal_network_debug:

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Campaign Dashboard · Quest Between{% endblock %}
+
+{% block content %}
+<section class="panel panel-elevated">
+    <h1 class="heading-xl">Campaign Ledger</h1>
+    <p class="lede">Create a campaign seed to begin deterministic travel, events, and settlement play.</p>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Create Campaign</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2 class="heading-lg">Existing Campaigns</h2>
+    <ul class="record-list">
+        {% for campaign in campaigns %}
+        <li>
+            <a href="{% url 'campaign:campaign_detail' campaign_id=campaign.id %}">{{ campaign.name }}</a>
+            <span>Seed: {{ campaign.seed }}</span>
+            <span>Week {{ campaign.current_week }}, Day {{ campaign.current_day }}</span>
+        </li>
+        {% empty %}
+        <li>No campaigns yet.</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

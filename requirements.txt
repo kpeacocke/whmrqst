@@ -1,16 +1,19 @@
 blinker==1.9.0
 click==8.3.1
+Django==5.2.6
 dnspython==2.8.0
 Flask==3.1.2
 Flask-PyMongo==3.0.1
 iniconfig==2.3.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
-Jinja2==3.1.6
 MarkupSafe==3.0.3
 packaging==25.0
+psycopg[binary]==3.2.9
 pluggy==1.6.0
 pymongo==4.15.5
 pytest==9.0.2
+pytest-django==4.11.1
+sqlparse==0.5.3
 Werkzeug==3.1.4
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

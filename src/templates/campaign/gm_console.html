@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}GM Console · Quest Between{% endblock %}
+
+{% block content %}
+<section class="panel panel-elevated">
+    <h1 class="heading-xl">GM Console</h1>
+    <p class="lede">Restricted content editor for hazard tables, settlement events, and catastrophic outcomes.</p>
+    <form method="get" class="stacked-form gm-filter-form">
+        <p>
+            <label for="source">Source</label>
+            <input id="source" type="text" name="source" value="{{ source_filter }}" placeholder="whq_roleplay_book">
+        </p>
+        <div class="action-grid">
+            <p>
+                <label for="hazard_roll">Hazard Roll</label>
+                <input id="hazard_roll" type="text" name="hazard_roll" value="{{ hazard_roll_filter }}" placeholder="11, 21, 6-9">
+            </p>
+            <p>
+                <label for="settlement_roll">Settlement Roll</label>
+                <input id="settlement_roll" type="text" name="settlement_roll" value="{{ settlement_roll_filter }}" placeholder="11, 35, 66">
+            </p>
+            <p>
+                <label for="catastrophic_roll">Catastrophic Roll</label>
+                <input id="catastrophic_roll" type="text" name="catastrophic_roll" value="{{ catastrophic_roll_filter }}" placeholder="2, 10, 6-9">
+            </p>
+        </div>
+        <button type="submit" class="btn">Filter Tables</button>
+    </form>
+    <form method="post" action="{% url 'campaign:seed_warhammer_content' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Seed Warhammer-Inspired Tables</button>
+    </form>
+</section>
+
+<div class="three-column">
+    <section class="panel">
+        <h2 class="heading-lg">Hazards</h2>
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <input type="hidden" name="form_kind" value="hazard">
+            {{ hazard_form.as_p }}
+            <button type="submit" class="btn">Save Hazard</button>
+        </form>
+        <ul class="record-list">
+            {% for item in hazards %}
+            <li>
+                <strong>{{ item.definition.table_roll }} · {{ item.name }}</strong>
+                <span>{{ item.settlement_size }} · severity {{ item.severity }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="panel">
+        <h2 class="heading-lg">Settlement Events</h2>
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <input type="hidden" name="form_kind" value="settlement">
+            {{ settlement_event_form.as_p }}
+            <button type="submit" class="btn">Save Settlement Event</button>
+        </form>
+        <ul class="record-list">
+            {% for item in settlement_events %}
+            <li>
+                <strong>{{ item.definition.table_roll }} · {{ item.name }}</strong>
+                <span>weight {{ item.weight }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="panel">
+        <h2 class="heading-lg">Catastrophic Events</h2>
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <input type="hidden" name="form_kind" value="catastrophic">
+            {{ catastrophic_form.as_p }}
+            <button type="submit" class="btn">Save Catastrophic Event</button>
+        </form>
+        <ul class="record-list">
+            {% for item in catastrophic_events %}
+            <li>
+                <strong>{{ item.definition.table_roll }} · {{ item.name }}</strong>
+                <span>weight {{ item.weight }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+</div>
+
+<section class="panel">
+    <h2 class="heading-lg">Settlement Special Locations (WHQ)</h2>
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        <input type="hidden" name="form_kind" value="location">
+        {{ location_form.as_p }}
+        <button type="submit" class="btn">Save Settlement Location</button>
+    </form>
+    <ul class="record-list">
+        {% for item in settlement_locations %}
+        <li>
+            <strong>{{ item.code }} · {{ item.name }}</strong>
+            <span>
+                always {{ item.always_available }} · village {{ item.village_available }} · town target {{ item.town_find_target|default:'-' }} · city target {{ item.city_find_target|default:'-' }}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,5 @@
+{% with effects=step.effects_applied %}
+<span class="impact-pill {% if step.action_type == 'catastrophic_event' %}catastrophic{% elif effects.party_gold_delta and effects.party_gold_delta < 0 %}negative{% elif effects.hero_health_delta and effects.hero_health_delta > 0 %}positive{% else %}neutral{% endif %}">
+    {{ step.step_type|title }} · {{ step.action_type|title }}
+</span>
+{% endwith %}
