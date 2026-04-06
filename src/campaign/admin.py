@@ -51,6 +51,7 @@ class HeroAdmin(admin.ModelAdmin):
         "max_health",
         "days_unavailable",
         "in_disguise",
+        "alive",
     )
     list_filter = ("archetype",)
     search_fields = ("name",)
@@ -132,7 +133,6 @@ class HeroSkillAdmin(admin.ModelAdmin):
 class InventoryItemAdmin(admin.ModelAdmin):
     list_display = ("item_def", "party", "hero", "quantity", "updated_at")
     search_fields = ("item_def__name", "party__name", "hero__name")
-
 
 @admin.register(StepLog)
 class StepLogAdmin(admin.ModelAdmin):

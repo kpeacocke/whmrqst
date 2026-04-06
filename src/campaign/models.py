@@ -55,6 +55,7 @@ class Hero(TimeStampedModel):
     has_pet_dog = models.BooleanField(default=False)
     investment_active = models.BooleanField(default=False)
     temple_reroll_charges = models.PositiveSmallIntegerField(default=0)
+    alive = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name

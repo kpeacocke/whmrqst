@@ -317,6 +317,36 @@ class ExpeditionServiceTests(TestCase):
         )
         call_command("seed_warhammer_content")
         self.expedition_def = ExpeditionDef.objects.get(code="road_escort")
+        self.guaranteed_success_expedition = ExpeditionDef.objects.create(
+            code="test_safe_run",
+            name="Test Safe Run",
+            base_reward_min=50,
+            base_reward_max=50,
+            base_supply_cost=1,
+            base_injury_risk=1,
+            difficulty=1,
+            definition={
+                "source": "test_suite",
+                "book_section": "Expeditions",
+                "narrative": "A controlled route for deterministic expedition testing.",
+                "loot_table": [{"item_name": "WHQ Rope", "weight": 1}],
+            },
+        )
+        self.guaranteed_injury_expedition = ExpeditionDef.objects.create(
+            code="test_deadly_run",
+            name="Test Deadly Run",
+            base_reward_min=10,
+            base_reward_max=10,
+            base_supply_cost=1,
+            base_injury_risk=6,
+            difficulty=1,
+            definition={
+                "source": "test_suite",
+                "book_section": "Expeditions",
+                "narrative": "A controlled route for deterministic injury testing.",
+                "loot_table": [{"item_name": "WHQ Rope", "weight": 1}],
+            },
+        )
 
     def test_expedition_resolution_creates_log_and_record(self):
         result = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
@@ -340,14 +370,24 @@ class ExpeditionServiceTests(TestCase):
         self.party.save(update_fields=["gold", "supplies", "morale", "updated_at"])
         self.hero_1.current_health = 11
         self.hero_1.save(update_fields=["current_health", "updated_at"])
+        self.hero_1.alive = True
+        self.hero_1.conditions = []
+        self.hero_1.stats = {}
+        self.hero_1.save(update_fields=["current_health", "alive", "conditions", "stats", "updated_at"])
         self.hero_2.current_health = 10
         self.hero_2.save(update_fields=["current_health", "updated_at"])
+        self.hero_2.alive = True
+        self.hero_2.conditions = []
+        self.hero_2.stats = {}
+        self.hero_2.save(update_fields=["current_health", "alive", "conditions", "stats", "updated_at"])
 
         second = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
 
         self.assertEqual(first["success"], second["success"])
         self.assertEqual(first["party_gold_delta"], second["party_gold_delta"])
         self.assertEqual(first["party_supplies_delta"], second["party_supplies_delta"])
+        self.assertEqual(first["injuries"], second["injuries"])
+        self.assertEqual(first["loot"], second["loot"])
 
     def test_expedition_view_endpoint_runs_and_redirects(self):
         response = self.client.post(
@@ -357,3 +397,55 @@ class ExpeditionServiceTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Expedition.objects.filter(campaign=self.campaign).exists())
+
+    def test_expedition_dead_hero_is_marked_not_alive(self):
+        self.hero_1.current_health = 1
+        self.hero_1.save(update_fields=["current_health", "updated_at"])
+
+        result = resolve_expedition(self.party, self.guaranteed_injury_expedition, Expedition.RiskLevel.RECKLESS)
+
+        self.hero_1.refresh_from_db()
+
+        self.assertFalse(self.hero_1.alive)
+        self.assertIn("dead", self.hero_1.conditions)
+        self.assertTrue(any(entry["hero"] == self.hero_1.name for entry in result["deaths"]))
+
+    def test_expedition_injured_hero_gains_condition(self):
+        self.hero_1.current_health = 3
+        self.hero_1.save(update_fields=["current_health", "updated_at"])
+
+        result = resolve_expedition(self.party, self.guaranteed_injury_expedition, Expedition.RiskLevel.RECKLESS)
+
+        self.hero_1.refresh_from_db()
+
+        self.assertTrue(self.hero_1.alive)
+        self.assertIn("injured", self.hero_1.conditions)
+        self.assertTrue(any(entry["hero"] == self.hero_1.name for entry in result["conditions_gained"]))
+
+    def test_expedition_success_drops_loot_item(self):
+        self.hero_1.level = 10
+        self.hero_2.level = 10
+        self.hero_1.save(update_fields=["level", "updated_at"])
+        self.hero_2.save(update_fields=["level", "updated_at"])
+
+        result = resolve_expedition(self.party, self.guaranteed_success_expedition, Expedition.RiskLevel.STANDARD)
+
+        inventory_item = InventoryItem.objects.get(party=self.party, hero=None, item_def__name="WHQ Rope")
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["loot"], [{"item_name": "WHQ Rope", "quantity": 1}])
+        self.assertEqual(inventory_item.quantity, 1)
+
+    def test_expedition_heroes_gain_expedition_progress(self):
+        self.hero_1.level = 10
+        self.hero_2.level = 10
+        self.hero_1.save(update_fields=["level", "updated_at"])
+        self.hero_2.save(update_fields=["level", "updated_at"])
+
+        resolve_expedition(self.party, self.guaranteed_success_expedition, Expedition.RiskLevel.STANDARD)
+
+        self.hero_1.refresh_from_db()
+        self.hero_2.refresh_from_db()
+
+        self.assertEqual(self.hero_1.stats.get("expedition_progress"), 1)
+        self.assertEqual(self.hero_2.stats.get("expedition_progress"), 1)

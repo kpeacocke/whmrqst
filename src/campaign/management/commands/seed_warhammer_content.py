@@ -211,13 +211,35 @@ class Command(BaseCommand):
             )
 
     def _seed_expeditions(self):
+        loot_tables = {
+            "ruins_delve": [
+                {"item_name": "WHQ Rope", "weight": 4},
+                {"item_name": "WHQ Lantern", "weight": 3},
+                {"item_name": "WHQ Healing Draught", "weight": 3},
+            ],
+            "road_escort": [
+                {"item_name": "WHQ Provisions", "weight": 5},
+                {"item_name": "WHQ Rope", "weight": 3},
+                {"item_name": "WHQ Healing Draught", "weight": 2},
+            ],
+            "beast_hunt": [
+                {"item_name": "WHQ Healing Draught", "weight": 4},
+                {"item_name": "WHQ Bow", "weight": 3},
+                {"item_name": "WHQ Rope", "weight": 3},
+            ],
+            "relic_recovery": [
+                {"item_name": "WHQ Healing Draught", "weight": 3},
+                {"item_name": "WHQ Chainmail", "weight": 2},
+                {"item_name": "WHQ Sword", "weight": 3},
+                {"item_name": "WHQ Lantern", "weight": 2},
+            ],
+        }
         expeditions = [
             ("ruins_delve", "Ruins Delve", 40, 120, 2, 2, 4, "Recover artefacts from dangerous ruins."),
             ("road_escort", "Road Escort", 25, 90, 1, 2, 3, "Escort merchants through contested roads."),
             ("beast_hunt", "Beast Hunt", 55, 160, 2, 3, 5, "Track and kill a marauding beast."),
             ("relic_recovery", "Relic Recovery", 65, 180, 3, 3, 6, "Retrieve a sacred relic from hostile ground."),
         ]
-
         for code, name, reward_min, reward_max, supply_cost, injury_risk, difficulty, narrative in expeditions:
             ExpeditionDef.objects.create(
                 code=code,
@@ -231,6 +253,7 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": "Expeditions",
                     "narrative": narrative,
+                    "loot_table": loot_tables[code],
                 },
             )
 
