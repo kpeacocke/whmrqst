@@ -36,6 +36,8 @@ The simplest way to run the application is via Docker Compose. This automaticall
    cp .env.example .env
    ```
 
+   Django management commands now load `.env` automatically when it is present.
+
 3. **Start the Application Stack**
 
    **Production mode:**
@@ -79,7 +81,8 @@ If you prefer to develop outside containers:
    cp .env.example .env
    ```
 
-   Update `.env` with your local PostgreSQL credentials if running the database separately.
+   For the default Docker setup, `.env.example` already points local Django at PostgreSQL on `localhost:5433`, and `manage.py` will load `.env` automatically.
+   If you are running PostgreSQL separately, update `.env` to match your own host, port, and credentials.
 
 3. **Run Migrations**
 
@@ -119,6 +122,13 @@ docker compose -f docker/docker-compose.yml exec web python manage.py test
 
 **Locally:**
 ```bash
+python manage.py test
+```
+
+If you are using Docker for PostgreSQL and running Django from the host, start the stack first so the database is listening on `localhost:5433`:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d db
 python manage.py test
 ```
 
