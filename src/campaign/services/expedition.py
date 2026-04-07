@@ -1,6 +1,7 @@
 from django.db import transaction
 
 from campaign.models import Expedition, ExpeditionDef, Hero, InventoryItem, ItemDef, Party, StepLog
+from campaign.services.crafting import get_party_encumbrance_penalty
 from campaign.services.rng import DeterministicRng, derive_step_seed
 
 
@@ -41,6 +42,7 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     seed = derive_step_seed(campaign.seed, "expedition", "run", f"party:{party.id}", sequence)
     rng = DeterministicRng(seed)
     config = RISK_CONFIG[risk_level]
+    encumbrance_penalty = get_party_encumbrance_penalty(party)
 
     challenge_roll = rng.randint(2, 12)
     challenge_total = challenge_roll + int(expedition_def.difficulty) + int(config["challenge_mod"])
@@ -67,7 +69,12 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     ]
 
     for hero in living_heroes:
-        injury_target = max(2, int(expedition_def.base_injury_risk) + int(config["injury_mod"]))
+        injury_target = max(
+            2,
+            int(expedition_def.base_injury_risk)
+            + int(config["injury_mod"])
+            + int(encumbrance_penalty["agility_penalty"]),
+        )
         injury_roll = rng.d6()
         dice_rolled.append(
             {
@@ -129,6 +136,7 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     effects = {
         "success": is_success,
         "success_margin": success_margin,
+        "encumbrance_penalty": encumbrance_penalty,
         "party_gold_delta": gold_delta,
         "party_supplies_delta": -supply_cost,
         "party_morale_delta": morale_delta,

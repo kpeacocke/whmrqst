@@ -1,6 +1,7 @@
 from django.db import transaction
 
 from campaign.models import HazardDef, Hero, Party, StepLog
+from campaign.services.crafting import get_party_encumbrance_penalty
 from campaign.services.rng import DeterministicRng, derive_step_seed
 
 WHQ_SOURCE = "whq_roleplay_book"
@@ -28,7 +29,8 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
         if hazard.definition.get("table_roll")
     }
 
-    pending_hazards = HAZARDS_BY_SETTLEMENT[settlement_size]
+    encumbrance_penalty = get_party_encumbrance_penalty(party)
+    pending_hazards = HAZARDS_BY_SETTLEMENT[settlement_size] + int(encumbrance_penalty["movement_penalty"])
     resolved = []
     safety_counter = 0
 
@@ -76,6 +78,7 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
 
     return {
         "settlement_size": settlement_size,
+        "encumbrance_penalty": encumbrance_penalty,
         "resolved_hazards": resolved,
         "party_gold": party.gold,
         "party_supplies": party.supplies,

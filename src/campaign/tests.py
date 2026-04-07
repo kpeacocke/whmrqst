@@ -23,7 +23,12 @@ from .models import (
     SkillDef,
     StepLog,
 )
-from .services.crafting import get_hero_carry_capacity, get_hero_carry_weight, resolve_crafting
+from .services.crafting import (
+    get_hero_carry_capacity,
+    get_hero_carry_weight,
+    get_party_encumbrance_penalty,
+    resolve_crafting,
+)
 from .services.economy import process_shop_transaction
 from .services.expedition import resolve_expedition
 from .services.settlement import resolve_settlement_action
@@ -609,6 +614,45 @@ class TravelEdgeCaseTests(TestCase):
         with self.assertRaises(ValueError):
             resolve_travel_hazards(self.party, "village")
 
+    def test_travel_adds_hazards_for_encumbered_party(self):
+        from .services.travel import resolve_travel_hazards
+
+        hero = Hero.objects.create(
+            party=self.party,
+            name="Slowfoot",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
+        )
+        heavy_item = ItemDef.objects.create(
+            name="Travel Anvil",
+            category="utility",
+            base_price=1,
+            stock_value=1,
+            weight=7,
+        )
+        # level-1 carry capacity is 12, so 2x7 overloads the hero by 2.
+        InventoryItem.objects.create(
+            party=self.party,
+            hero=hero,
+            item_def=heavy_item,
+            quantity=2,
+        )
+
+        with patch("campaign.services.travel._apply_hazard_effects") as mocked_effects:
+            mocked_effects.return_value = {
+                "gold_delta": 0,
+                "supplies_delta": 0,
+                "morale_delta": 0,
+                "injuries": [],
+                "extra_hazards": 0,
+            }
+            result = resolve_travel_hazards(self.party, "village")
+
+        self.assertEqual(result["encumbrance_penalty"]["movement_penalty"], 1)
+        self.assertEqual(len(result["resolved_hazards"]), 3)
+
 
 # ---------------------------------------------------------------------------
 # Expedition edge cases
@@ -680,6 +724,37 @@ class ExpeditionEdgeCaseTests(TestCase):
         )
         result = resolve_expedition(self.party, ghost_def, Expedition.RiskLevel.STANDARD)
         self.assertEqual(result["loot"], [])
+
+    def test_resolve_expedition_applies_encumbrance_injury_penalty(self):
+        hero = Hero.objects.create(
+            party=self.party,
+            name="Loaded",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
+        )
+        heavy_item = ItemDef.objects.create(
+            name="Pack Boulder",
+            category="utility",
+            base_price=1,
+            stock_value=1,
+            weight=7,
+        )
+        InventoryItem.objects.create(
+            party=self.party,
+            hero=hero,
+            item_def=heavy_item,
+            quantity=2,
+        )
+
+        result = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
+        step = StepLog.objects.filter(campaign=self.campaign, step_type="expedition", action_type="run").latest("id")
+        injury_checks = [roll for roll in step.dice_rolled if roll.get("context") == "injury-check"]
+
+        self.assertEqual(result["encumbrance_penalty"]["agility_penalty"], 1)
+        self.assertTrue(injury_checks)
+        self.assertEqual(injury_checks[0]["target"], max(2, int(self.expedition_def.base_injury_risk) + 1))
 
 
 # ---------------------------------------------------------------------------
@@ -1510,6 +1585,50 @@ class EncumbranceTests(TestCase):
         )
         # 4*1 + 1*3 = 7
         self.assertEqual(get_hero_carry_weight(self.hero), 7)
+
+    def test_party_encumbrance_penalty_is_zero_when_not_overloaded(self):
+        InventoryItem.objects.create(
+            party=self.party, hero=self.hero, item_def=self.item_def, quantity=2
+        )
+        penalty = get_party_encumbrance_penalty(self.party)
+        self.assertEqual(penalty["overloaded_heroes"], 0)
+        self.assertEqual(penalty["movement_penalty"], 0)
+        self.assertEqual(penalty["agility_penalty"], 0)
+
+    def test_party_encumbrance_penalty_counts_overloaded_living_heroes(self):
+        second_hero = Hero.objects.create(
+            party=self.party,
+            name="Second",
+            archetype=Hero.Archetype.RANGER,
+            level=1,
+            max_health=10,
+            current_health=10,
+        )
+        dead_hero = Hero.objects.create(
+            party=self.party,
+            name="Fallen",
+            archetype=Hero.Archetype.MAGE,
+            level=1,
+            max_health=8,
+            current_health=0,
+            alive=False,
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=self.hero, item_def=self.item_def, quantity=5
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=second_hero, item_def=self.item_def, quantity=4
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=dead_hero, item_def=self.item_def, quantity=10
+        )
+
+        penalty = get_party_encumbrance_penalty(self.party)
+
+        self.assertEqual(penalty["overloaded_heroes"], 2)
+        self.assertEqual(penalty["movement_penalty"], 2)
+        self.assertEqual(penalty["agility_penalty"], 2)
+        self.assertEqual(penalty["total_overload"], 8)
 
 
 class CraftingServiceTests(TestCase):

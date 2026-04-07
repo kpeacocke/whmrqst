@@ -22,6 +22,36 @@ def get_hero_carry_weight(hero: Hero) -> int:
     return result or 0
 
 
+def get_party_encumbrance_penalty(party: Party) -> dict:
+    """Return party-level encumbrance penalties used by travel and expedition services."""
+    heroes = list(Hero.objects.filter(party=party, alive=True).order_by("id"))
+    if not heroes:
+        return {
+            "overloaded_heroes": 0,
+            "total_overload": 0,
+            "movement_penalty": 0,
+            "agility_penalty": 0,
+        }
+
+    overloaded_count = 0
+    total_overload = 0
+
+    for hero in heroes:
+        carry_weight = get_hero_carry_weight(hero)
+        carry_capacity = get_hero_carry_capacity(hero)
+        overload = max(0, carry_weight - carry_capacity)
+        if overload > 0:
+            overloaded_count += 1
+            total_overload += overload
+
+    return {
+        "overloaded_heroes": overloaded_count,
+        "total_overload": total_overload,
+        "movement_penalty": overloaded_count,
+        "agility_penalty": overloaded_count,
+    }
+
+
 @transaction.atomic
 def resolve_crafting(
     party: Party,
