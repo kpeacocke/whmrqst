@@ -1,3 +1,5 @@
+from typing import Any
+
 from campaign.models import Hero, HeroSkill, Party, SettlementLocationDef, SkillDef
 from campaign.services.rng import DeterministicRng
 
@@ -12,7 +14,7 @@ ARCHETYPE_LOCATION_GATES = {
 def resolve_location_access(
     settlement_size: str,
     rng: DeterministicRng,
-) -> tuple[SettlementLocationDef | None, list[dict]]:
+) -> tuple[SettlementLocationDef | None, list[dict[str, Any]]]:
     """Roll to find an accessible special location for the given settlement size.
 
     Village: only village_available or always_available locations are accessible.
@@ -20,7 +22,7 @@ def resolve_location_access(
 
     Returns (selected_location_or_None, dice_rolled).
     """
-    dice_rolled = []
+    dice_rolled: list[dict[str, Any]] = []
 
     if settlement_size == "village":
         accessible = list(
@@ -62,7 +64,7 @@ def apply_location_effects(
     party: Party,
     location: SettlementLocationDef,
     rng: DeterministicRng,
-) -> dict:
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Apply the effects of visiting a location. Returns an effects dict."""
     code = location.code
     effects = {
@@ -75,7 +77,7 @@ def apply_location_effects(
         "rejected": None,
         "narrative": "",
     }
-    dice_rolled = []
+    dice_rolled: list[dict[str, Any]] = []
 
     # Archetype gates — return early without any mutation if hero doesn't qualify.
     required_archetype = ARCHETYPE_LOCATION_GATES.get(code)
@@ -170,9 +172,7 @@ def _grant_next_archetype_skill(
     location: SettlementLocationDef,
 ) -> HeroSkill | None:
     """Grant the next unlearned archetype skill to the hero. Returns the new HeroSkill or None."""
-    already_learned = set(
-        hero.hero_skills.values_list("skill_def_id", flat=True)
-    )
+    already_learned = set(HeroSkill.objects.filter(hero=hero).values_list("skill_def_id", flat=True))
     available = SkillDef.objects.filter(
         archetype=hero.archetype,
     ).exclude(id__in=already_learned).order_by("name").first()

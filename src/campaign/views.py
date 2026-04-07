@@ -26,6 +26,7 @@ from campaign.models import (
     CraftingRecipeDef,
     Expedition,
     HazardDef,
+    Party,
     SettlementEventDef,
     SettlementLocationDef,
     StepLog,
@@ -54,9 +55,9 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, id=campaign_id)
-    party = campaign.parties.order_by("id").first()
+    party = Party.objects.filter(campaign=campaign).order_by("id").first()
 
-    party_form = PartyCreateForm(initial={"campaign": campaign.id})
+    party_form = PartyCreateForm(initial={"campaign": campaign_id})
     hero_form = HeroCreateForm()
 
     if request.method == "POST":
@@ -65,15 +66,15 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
             party_form = PartyCreateForm(request.POST)
             if party_form.is_valid():
                 party_form.save()
-                return redirect("campaign:campaign_detail", campaign_id=campaign.id)
+                return redirect("campaign:campaign_detail", campaign_id=campaign_id)
         if create_type == "hero":
             hero_form = HeroCreateForm(request.POST)
             if hero_form.is_valid():
                 created_hero = hero_form.save()
                 return redirect("campaign:campaign_detail", campaign_id=created_hero.party.campaign_id)
 
-    recent_steps = campaign.step_logs.order_by("-created_at")[:20]
-    latest_expedition = campaign.expeditions.order_by("-created_at").first()
+    recent_steps = StepLog.objects.filter(campaign=campaign).order_by("-created_at")[:20]
+    latest_expedition = Expedition.objects.filter(campaign=campaign).order_by("-created_at").first()
     expedition_form = ExpeditionForm()
     travel_form = TravelForm()
     hero_action_form = HeroActionForm(party=party)
@@ -102,7 +103,7 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
 @require_http_methods(["POST"])
 def resolve_expedition_run(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, id=campaign_id)
-    party = campaign.parties.order_by("id").first()
+    party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404("Campaign has no party yet")
 
@@ -122,7 +123,7 @@ def resolve_expedition_run(request: HttpRequest, campaign_id: int) -> HttpRespon
 @require_http_methods(["POST"])
 def resolve_travel(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, id=campaign_id)
-    party = campaign.parties.order_by("id").first()
+    party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404("Campaign has no party yet")
 
@@ -138,7 +139,7 @@ def resolve_travel(request: HttpRequest, campaign_id: int) -> HttpResponse:
 @require_http_methods(["POST"])
 def resolve_hero_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, id=campaign_id)
-    party = campaign.parties.order_by("id").first()
+    party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404("Campaign has no party yet")
 
@@ -157,7 +158,7 @@ def resolve_hero_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
 @require_http_methods(["POST"])
 def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, id=campaign_id)
-    party = campaign.parties.order_by("id").first()
+    party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404("Campaign has no party yet")
 
@@ -181,7 +182,7 @@ def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResp
 @require_http_methods(["POST"])
 def resolve_crafting_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, id=campaign_id)
-    party = campaign.parties.order_by("id").first()
+    party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404("Campaign has no party yet")
 

@@ -1,13 +1,15 @@
+from typing import Any
+
 from django.db import transaction
 
-from campaign.models import HazardDef, InventoryItem, ItemDef, Party, StepLog
+from campaign.models import InventoryItem, ItemDef, Party, StepLog
 from campaign.services.rng import DeterministicRng, derive_step_seed
 
 
 STOCK_DICE_BY_SETTLEMENT = {
-    HazardDef.SettlementSize.VILLAGE: 1,
-    HazardDef.SettlementSize.TOWN: 2,
-    HazardDef.SettlementSize.CITY: 3,
+    "village": 1,
+    "town": 2,
+    "city": 3,
 }
 
 
@@ -18,11 +20,11 @@ def process_shop_transaction(
     transaction_type: str,
     item_def: ItemDef,
     quantity: int,
-) -> dict:
-    locked_party = Party.objects.select_for_update().get(id=party.id)
+) -> dict[str, Any]:
+    locked_party = Party.objects.select_for_update().get(pk=party.pk)
     campaign = locked_party.campaign
-    sequence = campaign.step_logs.count() + 1
-    actor_key = f"party:{locked_party.id}"
+    sequence = StepLog.objects.filter(campaign=campaign).count() + 1
+    actor_key = f"party:{locked_party.pk}"
     seed = derive_step_seed(campaign.seed, "economy", transaction_type, actor_key, sequence)
     rng = DeterministicRng(seed)
 
@@ -40,7 +42,7 @@ def _buy_item(
     quantity: int,
     rng: DeterministicRng,
     seed: str,
-) -> dict:
+) -> dict[str, Any]:
     stock_dice_count = STOCK_DICE_BY_SETTLEMENT.get(settlement_size, 1)
     stock_rolls = [rng.d6() for _ in range(stock_dice_count)]
     stock_total = sum(stock_rolls)
@@ -128,7 +130,7 @@ def _sell_item(
     quantity: int,
     rng: DeterministicRng,
     seed: str,
-) -> dict:
+) -> dict[str, Any]:
     del rng  # Sell operations have no availability roll in this phase.
     del settlement_size
 
@@ -192,8 +194,8 @@ def _log_economy_step(
     party: Party,
     action_type: str,
     seed: str,
-    dice_rolled: list,
-    effects_applied: dict,
+    dice_rolled: list[dict[str, Any]],
+    effects_applied: dict[str, Any],
     narrative: str,
 ) -> StepLog:
     return StepLog.objects.create(

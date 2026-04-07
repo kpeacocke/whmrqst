@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.db import transaction
 
 from campaign.models import Expedition, ExpeditionDef, Hero, InventoryItem, ItemDef, Party, StepLog
@@ -6,19 +8,19 @@ from campaign.services.rng import DeterministicRng, derive_step_seed
 
 
 RISK_CONFIG = {
-    Expedition.RiskLevel.CAUTIOUS: {
+    "cautious": {
         "reward_pct": 0.75,
         "challenge_mod": -1,
         "injury_mod": -1,
         "morale_on_success": 0,
     },
-    Expedition.RiskLevel.STANDARD: {
+    "standard": {
         "reward_pct": 1.0,
         "challenge_mod": 0,
         "injury_mod": 0,
         "morale_on_success": 1,
     },
-    Expedition.RiskLevel.RECKLESS: {
+    "reckless": {
         "reward_pct": 1.4,
         "challenge_mod": 2,
         "injury_mod": 1,
@@ -28,7 +30,7 @@ RISK_CONFIG = {
 
 
 @transaction.atomic
-def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: str) -> dict:
+def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: str) -> dict[str, Any]:
     campaign = party.campaign
     heroes = list(Hero.objects.filter(party=party).order_by("id"))
     if not heroes:
@@ -38,8 +40,8 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     if not living_heroes:
         raise ValueError("Party has no living heroes")
 
-    sequence = campaign.step_logs.count() + 1
-    seed = derive_step_seed(campaign.seed, "expedition", "run", f"party:{party.id}", sequence)
+    sequence = StepLog.objects.filter(campaign=campaign).count() + 1
+    seed = derive_step_seed(campaign.seed, "expedition", "run", f"party:{party.pk}", sequence)
     rng = DeterministicRng(seed)
     config = RISK_CONFIG[risk_level]
     encumbrance_penalty = get_party_encumbrance_penalty(party)
@@ -55,9 +57,9 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     gold_delta = base_reward if is_success else max(0, base_reward // 3)
 
     supply_cost = max(1, int(expedition_def.base_supply_cost))
-    if risk_level == Expedition.RiskLevel.CAUTIOUS:
+    if risk_level == "cautious":
         supply_cost = max(1, supply_cost - 1)
-    elif risk_level == Expedition.RiskLevel.RECKLESS:
+    elif risk_level == "reckless":
         supply_cost += 1
 
     injuries = []
@@ -165,7 +167,7 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
         expedition_def=expedition_def,
         risk_level=risk_level,
         result={
-            "step_log_id": step_log.id,
+            "step_log_id": int(step_log.pk),
             "success": is_success,
             "narrative": narrative,
             **effects,
@@ -173,8 +175,8 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     )
 
     return {
-        "expedition_id": expedition.id,
-        "step_log_id": step_log.id,
+        "expedition_id": int(expedition.pk),
+        "step_log_id": int(step_log.pk),
         "narrative": narrative,
         **effects,
     }
@@ -191,8 +193,8 @@ def _resolve_expedition_loot(
     party: Party,
     expedition_def: ExpeditionDef,
     rng: DeterministicRng,
-    dice_rolled: list,
-) -> list:
+    dice_rolled: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     definition = expedition_def.definition or {}
     loot_table = definition.get("loot_table", [])
     if not loot_table:

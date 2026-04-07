@@ -1,4 +1,3 @@
-import pytest
 
 # Mock Character class for testing purposes
 class Character:

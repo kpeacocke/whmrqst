@@ -1,4 +1,3 @@
-import pytest
 
 # Mock Goal class for tracking game goals
 class Goal:

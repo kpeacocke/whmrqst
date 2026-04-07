@@ -22,7 +22,7 @@ def get_hero_carry_weight(hero: Hero) -> int:
     return result or 0
 
 
-def get_party_encumbrance_penalty(party: Party) -> dict:
+def get_party_encumbrance_penalty(party: Party) -> dict[str, int]:
     """Return party-level encumbrance penalties used by travel and expedition services."""
     heroes = list(Hero.objects.filter(party=party, alive=True).order_by("id"))
     if not heroes:
@@ -72,8 +72,8 @@ def resolve_crafting(
     output_item_name = definition.get("output_item_name", "")
     output_quantity = int(definition.get("output_quantity", 1))
 
-    sequence = campaign.step_logs.count() + 1
-    actor_key = f"party:{party.id}"
+    sequence = StepLog.objects.filter(campaign=campaign).count() + 1
+    actor_key = f"party:{party.pk}"
     seed = derive_step_seed(campaign.seed, "crafting", "craft", actor_key, sequence)
 
     # Validate all ingredients are available before consuming any.

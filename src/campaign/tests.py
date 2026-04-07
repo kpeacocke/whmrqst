@@ -291,7 +291,7 @@ class SkillSystemTests(TestCase):
         )
 
     def test_mage_cannot_access_dwarf_guildmasters(self):
-        from .services.location import apply_location_effects, resolve_location_access
+        from .services.location import apply_location_effects
         from .services.rng import DeterministicRng
 
         location = SettlementLocationDef.objects.get(code="dwarf_guildmasters")
@@ -685,12 +685,12 @@ class ExpeditionEdgeCaseTests(TestCase):
             resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
 
     def test_resolve_expedition_cautious_has_lower_supply_cost(self):
-        hero = Hero.objects.create(
+        Hero.objects.create(
             party=self.party, name="Careful", archetype=Hero.Archetype.WARRIOR,
             level=5, max_health=15, current_health=15,
         )
         starting_supplies = self.party.supplies
-        result = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.CAUTIOUS)
+        resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.CAUTIOUS)
         self.party.refresh_from_db()
         self.assertLessEqual(starting_supplies - self.party.supplies, self.expedition_def.base_supply_cost)
 
@@ -1037,7 +1037,6 @@ class SettlementEdgeCaseTests(TestCase):
 
     def test_special_action_with_no_accessible_location_reduces_morale(self):
         SettlementLocationDef.objects.all().delete()
-        starting_morale = self.party.morale
         result = resolve_settlement_action(self.hero, "special", "village")
         self.party.refresh_from_db()
         self.assertEqual(result["action_effects"]["party_morale_delta"], -1)

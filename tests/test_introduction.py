@@ -1,4 +1,3 @@
-import pytest
 
 # Mock Introduction and Game classes for testing purposes
 class Introduction:

@@ -1,4 +1,5 @@
 from django.db import transaction
+from typing import Any
 
 from campaign.models import CatastrophicEventDef, Hero, HeroSkill, Party, SettlementEventDef, SkillDef, StepLog
 from campaign.services.rng import DeterministicRng, derive_step_seed
@@ -9,7 +10,7 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
     party = hero.party
     campaign = party.campaign
 
-    action_seed = _next_seed(campaign, "settlement", action_type, f"hero:{hero.id}")
+    action_seed = _next_seed(campaign, "settlement", action_type, f"hero:{hero.pk}")
     rng = DeterministicRng(action_seed)
     action_effects, action_dice = _apply_daily_action(hero, action_type, settlement_size, rng)
     action_log = StepLog.objects.create(
@@ -35,7 +36,7 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
         catastrophic_result = _resolve_catastrophic_event(party)
 
     return {
-        "action_log_id": action_log.id,
+        "action_log_id": int(action_log.pk),
         "action_effects": action_effects,
         "settlement_event": event_result,
         "catastrophic_event": catastrophic_result,
@@ -46,7 +47,7 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
 
 def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng: DeterministicRng) -> tuple[dict, list]:
     party = hero.party
-    effects = {
+    effects: dict[str, Any] = {
         "hero_health_delta": 0,
         "party_gold_delta": 0,
         "party_morale_delta": 0,
@@ -102,9 +103,9 @@ def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng:
         else:
             loc_effects, loc_dice = apply_location_effects(hero, party, location, rng)
             dice_rolled.extend(loc_dice)
-            effects["party_gold_delta"] += loc_effects.get("party_gold_delta", 0)
-            effects["party_morale_delta"] += loc_effects.get("party_morale_delta", 0)
-            effects["hero_health_delta"] += loc_effects.get("hero_health_delta", 0)
+            effects["party_gold_delta"] += int(loc_effects.get("party_gold_delta", 0))
+            effects["party_morale_delta"] += int(loc_effects.get("party_morale_delta", 0))
+            effects["hero_health_delta"] += int(loc_effects.get("hero_health_delta", 0))
             effects["skill_learned"] = loc_effects.get("skill_learned")
             effects["location_visited"] = location.code
             effects["rejected"] = loc_effects.get("rejected")
@@ -117,7 +118,7 @@ def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng:
 
 def _grant_level_up_skill(hero: Hero) -> HeroSkill | None:
     """Award the next unlearned archetype skill to a hero who just levelled up."""
-    already_learned = set(hero.hero_skills.values_list("skill_def_id", flat=True))
+    already_learned = set(HeroSkill.objects.filter(hero=hero).values_list("skill_def_id", flat=True))
     skill_def = (
         SkillDef.objects.filter(archetype=hero.archetype)
         .exclude(id__in=already_learned)
@@ -136,7 +137,7 @@ def _resolve_settlement_event(hero: Hero) -> dict | None:
     if not events:
         return None
 
-    event_seed = _next_seed(campaign, "settlement", "event", f"hero:{hero.id}")
+    event_seed = _next_seed(campaign, "settlement", "event", f"hero:{hero.pk}")
     rng = DeterministicRng(event_seed)
     weighted_events = [(event, event.weight) for event in events]
     selected = rng.weighted_choice(weighted_events)
@@ -155,7 +156,7 @@ def _resolve_settlement_event(hero: Hero) -> dict | None:
         narrative=selected.definition.get("narrative", selected.name),
     )
 
-    return {"name": selected.name, "effects": effects, "log_id": event_log.id}
+    return {"name": selected.name, "effects": effects, "log_id": int(event_log.pk)}
 
 
 def _resolve_catastrophic_event(party: Party) -> dict | None:
@@ -164,7 +165,7 @@ def _resolve_catastrophic_event(party: Party) -> dict | None:
     if not events:
         return None
 
-    event_seed = _next_seed(campaign, "settlement", "catastrophic", f"party:{party.id}")
+    event_seed = _next_seed(campaign, "settlement", "catastrophic", f"party:{party.pk}")
     rng = DeterministicRng(event_seed)
     weighted_events = [(event, event.weight) for event in events]
     selected = rng.weighted_choice(weighted_events)
@@ -181,20 +182,20 @@ def _resolve_catastrophic_event(party: Party) -> dict | None:
         effects_applied=effects,
         narrative=selected.definition.get("narrative", selected.name),
     )
-    return {"name": selected.name, "effects": effects, "log_id": log.id}
+    return {"name": selected.name, "effects": effects, "log_id": int(log.pk)}
 
 
 def _apply_event_effects(
     hero: Hero | None,
-    effect_defs: list,
+    effect_defs: list[dict[str, Any]],
     rng: DeterministicRng,
     party: Party | None = None,
 ) -> dict:
     target_party = party or (hero.party if hero else None)
-    applied = {"hero_health_delta": 0, "party_gold_delta": 0, "party_morale_delta": 0}
+    applied: dict[str, int] = {"hero_health_delta": 0, "party_gold_delta": 0, "party_morale_delta": 0}
 
     for effect in effect_defs:
-        effect_type = effect.get("type")
+        effect_type = str(effect.get("type", ""))
         min_value = int(effect.get("min", 0))
         max_value = int(effect.get("max", min_value))
         value = rng.randint(min_value, max_value) if max_value >= min_value else min_value
@@ -216,8 +217,8 @@ def _apply_event_effects(
     return applied
 
 
-def _next_seed(campaign, step_type: str, action_type: str, actor_key: str) -> str:
-    sequence = campaign.step_logs.count() + 1
+def _next_seed(campaign: Any, step_type: str, action_type: str, actor_key: str) -> str:
+    sequence = StepLog.objects.filter(campaign=campaign).count() + 1
     return derive_step_seed(campaign.seed, step_type, action_type, actor_key, sequence)
 
 

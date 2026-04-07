@@ -10,7 +10,7 @@
 
         items.forEach((item, index) => {
             const delay = 120 + index * 140;
-            window.setTimeout(() => {
+            globalThis.setTimeout(() => {
                 item.classList.add('is-visible');
             }, delay);
         });

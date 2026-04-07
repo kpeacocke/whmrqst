@@ -44,7 +44,9 @@ class ExpeditionForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["expedition_def"].queryset = ExpeditionDef.objects.order_by("name")
+        expedition_field = self.fields["expedition_def"]
+        if isinstance(expedition_field, forms.ModelChoiceField):
+            expedition_field.queryset = ExpeditionDef.objects.order_by("name")
 
 
 class ShopTransactionForm(forms.Form):
@@ -59,7 +61,9 @@ class ShopTransactionForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["item_def"].queryset = ItemDef.objects.order_by("name")
+        item_field = self.fields["item_def"]
+        if isinstance(item_field, forms.ModelChoiceField):
+            item_field.queryset = ItemDef.objects.order_by("name")
 
 
 class HeroActionForm(forms.Form):
@@ -82,7 +86,9 @@ class HeroActionForm(forms.Form):
         party = kwargs.pop("party", None)
         super().__init__(*args, **kwargs)
         if party is not None:
-            self.fields["hero"].queryset = Hero.objects.filter(party=party).order_by("name")
+            hero_field = self.fields["hero"]
+            if isinstance(hero_field, forms.ModelChoiceField):
+                hero_field.queryset = Hero.objects.filter(party=party).order_by("name")
 
 
 class HazardDefForm(forms.ModelForm):
@@ -122,7 +128,9 @@ class CraftingForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["recipe_def"].queryset = CraftingRecipeDef.objects.order_by("name")
+        recipe_field = self.fields["recipe_def"]
+        if isinstance(recipe_field, forms.ModelChoiceField):
+            recipe_field.queryset = CraftingRecipeDef.objects.order_by("name")
 
 
 class CraftingRecipeDefForm(forms.ModelForm):

@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from django.db import transaction
 
 from campaign.models import HazardDef, Hero, Party, StepLog
@@ -8,14 +10,14 @@ WHQ_SOURCE = "whq_roleplay_book"
 
 
 HAZARDS_BY_SETTLEMENT = {
-    HazardDef.SettlementSize.VILLAGE: 2,
-    HazardDef.SettlementSize.TOWN: 4,
-    HazardDef.SettlementSize.CITY: 6,
+    "village": 2,
+    "town": 4,
+    "city": 6,
 }
 
 
 @transaction.atomic
-def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
+def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]:
     campaign = party.campaign
     hazards = list(HazardDef.objects.filter(definition__source=WHQ_SOURCE))
     if not hazards:
@@ -23,21 +25,22 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
     if not hazards:
         raise ValueError("No hazards are configured for travel resolution")
 
-    hazards_by_roll = {
-        str(hazard.definition.get("table_roll", "")): hazard
-        for hazard in hazards
-        if hazard.definition.get("table_roll")
-    }
+    hazards_by_roll: dict[str, HazardDef] = {}
+    for hazard in hazards:
+        definition = cast(dict[str, Any], hazard.definition or {})
+        table_roll = str(definition.get("table_roll", "")).strip()
+        if table_roll:
+            hazards_by_roll[table_roll] = hazard
 
     encumbrance_penalty = get_party_encumbrance_penalty(party)
-    pending_hazards = HAZARDS_BY_SETTLEMENT[settlement_size] + int(encumbrance_penalty["movement_penalty"])
-    resolved = []
+    pending_hazards = HAZARDS_BY_SETTLEMENT.get(settlement_size, 2) + int(encumbrance_penalty["movement_penalty"])
+    resolved: list[dict[str, Any]] = []
     safety_counter = 0
 
     while pending_hazards > 0 and safety_counter < 100:
         safety_counter += 1
-        sequence = campaign.step_logs.count() + 1
-        seed = derive_step_seed(campaign.seed, "travel", "hazard", f"party:{party.id}", sequence)
+        sequence = StepLog.objects.filter(campaign=campaign).count() + 1
+        seed = derive_step_seed(campaign.seed, "travel", "hazard", f"party:{party.pk}", sequence)
         rng = DeterministicRng(seed)
 
         tens = rng.d6()
@@ -47,7 +50,7 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
         if chosen_hazard is None:
             chosen_hazard = rng.choice(hazards)
 
-        dice_rolled = [
+        dice_rolled: list[dict[str, Any]] = [
             {"die": "d6", "result": tens, "context": "hazard-roll-tens"},
             {"die": "d6", "result": units, "context": "hazard-roll-units"},
             {"die": "d66", "result": table_roll, "context": "hazard-roll"},
@@ -67,13 +70,13 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
             rng_seed=seed,
             dice_rolled=dice_rolled,
             effects_applied=effects,
-            narrative=chosen_hazard.definition.get("narrative", chosen_hazard.name),
+            narrative=str(cast(dict[str, Any], chosen_hazard.definition or {}).get("narrative", chosen_hazard.name)),
         )
         resolved.append({
             "hazard": chosen_hazard.name,
             "table_roll": table_roll,
             "effects": effects,
-            "log_id": log.id,
+            "log_id": int(log.pk),
         })
 
     return {
@@ -86,11 +89,11 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict:
     }
 
 
-def _apply_hazard_effects(party: Party, hazard: HazardDef, rng: DeterministicRng) -> dict:
-    definition = hazard.definition or {}
-    effects = definition.get("effects", [])
+def _apply_hazard_effects(party: Party, hazard: HazardDef, rng: DeterministicRng) -> dict[str, Any]:
+    definition = cast(dict[str, Any], hazard.definition or {})
+    effects = cast(list[dict[str, Any]], definition.get("effects", []))
 
-    applied = {
+    applied: dict[str, Any] = {
         "gold_delta": 0,
         "supplies_delta": 0,
         "morale_delta": 0,
