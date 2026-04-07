@@ -4,6 +4,7 @@ from django.db import models
 from campaign.models import (
     Campaign,
     CatastrophicEventDef,
+    CraftingRecipeDef,
     Expedition,
     ExpeditionDef,
     HazardDef,
@@ -114,3 +115,17 @@ class SettlementLocationDefForm(forms.ModelForm):
             "city_find_target",
             "definition",
         ]
+
+
+class CraftingForm(forms.Form):
+    recipe_def = forms.ModelChoiceField(queryset=CraftingRecipeDef.objects.none())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["recipe_def"].queryset = CraftingRecipeDef.objects.order_by("name")
+
+
+class CraftingRecipeDefForm(forms.ModelForm):
+    class Meta:
+        model = CraftingRecipeDef
+        fields = ["code", "name", "definition"]

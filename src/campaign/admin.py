@@ -4,6 +4,7 @@ from .models import (
     Campaign,
     CatastrophicEventDef,
     ContentPack,
+    CraftingRecipeDef,
     Expedition,
     ExpeditionDef,
     HazardDef,
@@ -127,6 +128,12 @@ class HeroSkillAdmin(admin.ModelAdmin):
     list_display = ("hero", "skill_def", "source", "created_at")
     list_filter = ("source",)
     search_fields = ("hero__name", "skill_def__name")
+
+
+@admin.register(CraftingRecipeDef)
+class CraftingRecipeDefAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "updated_at")
+    search_fields = ("name", "code")
 
 
 @admin.register(InventoryItem)

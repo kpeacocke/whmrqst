@@ -8,6 +8,8 @@ from django.views.decorators.http import require_http_methods
 from campaign.forms import (
     CampaignCreateForm,
     CatastrophicEventDefForm,
+    CraftingForm,
+    CraftingRecipeDefForm,
     ExpeditionForm,
     HazardDefForm,
     HeroActionForm,
@@ -21,12 +23,14 @@ from campaign.forms import (
 from campaign.models import (
     Campaign,
     CatastrophicEventDef,
+    CraftingRecipeDef,
     Expedition,
     HazardDef,
     SettlementEventDef,
     SettlementLocationDef,
     StepLog,
 )
+from campaign.services.crafting import resolve_crafting
 from campaign.services.expedition import resolve_expedition
 from campaign.services.economy import process_shop_transaction
 from campaign.services.settlement import resolve_settlement_action
@@ -74,6 +78,7 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
     travel_form = TravelForm()
     hero_action_form = HeroActionForm(party=party)
     shop_form = ShopTransactionForm()
+    crafting_form = CraftingForm()
 
     return render(
         request,
@@ -88,6 +93,7 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
             "travel_form": travel_form,
             "hero_action_form": hero_action_form,
             "shop_form": shop_form,
+            "crafting_form": crafting_form,
             "recent_steps": recent_steps,
         },
     )
@@ -172,6 +178,26 @@ def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResp
     return redirect("campaign:campaign_detail", campaign_id=campaign_id)
 
 
+@require_http_methods(["POST"])
+def resolve_crafting_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
+    campaign = get_object_or_404(Campaign, id=campaign_id)
+    party = campaign.parties.order_by("id").first()
+    if not party:
+        raise Http404("Campaign has no party yet")
+
+    form = CraftingForm(request.POST)
+    if form.is_valid():
+        result = resolve_crafting(
+            party=party,
+            recipe_def=form.cleaned_data["recipe_def"],
+        )
+        if result["status"] == "success":
+            messages.success(request, result.get("narrative", "Item crafted."))
+        else:
+            messages.warning(request, f"Crafting failed: {result.get('reason', 'unknown reason')}.")
+    return redirect("campaign:campaign_detail", campaign_id=campaign_id)
+
+
 @staff_member_required
 @require_http_methods(["GET", "POST"])
 def gm_console(request: HttpRequest) -> HttpResponse:
@@ -184,6 +210,7 @@ def gm_console(request: HttpRequest) -> HttpResponse:
     settlement_event_form = SettlementEventDefForm(prefix="settlement")
     catastrophic_form = CatastrophicEventDefForm(prefix="catastrophic")
     location_form = SettlementLocationDefForm(prefix="location")
+    crafting_recipe_form = CraftingRecipeDefForm(prefix="crafting_recipe")
 
     if request.method == "POST":
         form_kind = request.POST.get("form_kind")
@@ -206,6 +233,11 @@ def gm_console(request: HttpRequest) -> HttpResponse:
             location_form = SettlementLocationDefForm(request.POST, prefix="location")
             if location_form.is_valid():
                 location_form.save()
+                return redirect("campaign:gm_console")
+        elif form_kind == "crafting_recipe":
+            crafting_recipe_form = CraftingRecipeDefForm(request.POST, prefix="crafting_recipe")
+            if crafting_recipe_form.is_valid():
+                crafting_recipe_form.save()
                 return redirect("campaign:gm_console")
 
     hazard_queryset = HazardDef.objects.all()
@@ -242,10 +274,12 @@ def gm_console(request: HttpRequest) -> HttpResponse:
         "settlement_event_form": settlement_event_form,
         "catastrophic_form": catastrophic_form,
         "location_form": location_form,
+        "crafting_recipe_form": crafting_recipe_form,
         "hazards": hazards,
         "settlement_events": settlement_events,
         "catastrophic_events": catastrophic_events,
         "settlement_locations": SettlementLocationDef.objects.order_by("code", "name"),
+        "crafting_recipes": CraftingRecipeDef.objects.order_by("code"),
         "source_filter": source_filter,
         "hazard_roll_filter": hazard_roll_filter,
         "settlement_roll_filter": settlement_roll_filter,

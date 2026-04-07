@@ -1,0 +1,273 @@
+> from django.db import transaction
+  
+> from campaign.models import CatastrophicEventDef, Hero, HeroSkill, Party, SettlementEventDef, SkillDef, StepLog
+> from campaign.services.rng import DeterministicRng, derive_step_seed
+  
+  
+> @transaction.atomic
+> def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str = "town") -> dict:
+>     party = hero.party
+>     campaign = party.campaign
+  
+>     action_seed = _next_seed(campaign, "settlement", action_type, f"hero:{hero.id}")
+>     rng = DeterministicRng(action_seed)
+>     action_effects, action_dice = _apply_daily_action(hero, action_type, settlement_size, rng)
+>     action_log = StepLog.objects.create(
+>         campaign=campaign,
+>         party=party,
+>         hero=hero,
+>         step_type="settlement",
+>         action_type=action_type,
+>         rng_seed=action_seed,
+>         dice_rolled=action_dice,
+>         effects_applied=action_effects,
+>         narrative=action_effects.get("narrative", f"{hero.name} performs action: {action_type}"),
+>     )
+  
+>     event_result = _resolve_settlement_event(hero)
+  
+>     campaign.current_day += 1
+>     campaign.current_week = ((campaign.current_day - 1) // 7) + 1
+>     campaign.save(update_fields=["current_day", "current_week", "updated_at"])
+  
+>     catastrophic_result = None
+>     if campaign.current_week > 2 and campaign.current_day % 7 == 0:
+>         catastrophic_result = _resolve_catastrophic_event(party)
+  
+>     return {
+>         "action_log_id": action_log.id,
+>         "action_effects": action_effects,
+>         "settlement_event": event_result,
+>         "catastrophic_event": catastrophic_result,
+>         "current_day": campaign.current_day,
+>         "current_week": campaign.current_week,
+>     }
+  
+  
+> def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng: DeterministicRng) -> tuple[dict, list]:
+>     party = hero.party
+>     effects = {
+>         "hero_health_delta": 0,
+>         "party_gold_delta": 0,
+>         "party_morale_delta": 0,
+>         "hero_level_delta": 0,
+>         "training_progress_delta": 0,
+>         "narrative": "",
+>     }
+>     dice_rolled = []
+  
+>     if action_type in {"rest", "heal"}:
+>         healed = min(2, hero.max_health - hero.current_health)
+>         hero.current_health += healed
+>         effects["hero_health_delta"] += healed
+>         effects["narrative"] = f"{hero.name} rests and recovers {healed} health."
+>     elif action_type == "train":
+>         cost = 10 * max(1, hero.level)
+>         if party.gold >= cost:
+>             party.gold -= cost
+>             party.morale += 1
+>             effects["party_gold_delta"] -= cost
+>             effects["party_morale_delta"] += 1
+>             stats = dict(hero.stats or {})
+>             progress = int(stats.get("training_progress", 0)) + 1
+>             threshold = max(2, hero.level * 2)
+>             effects["training_progress_delta"] = 1
+  
+>             if progress >= threshold:
+>                 hero.level += 1
+>                 hero.max_health += 1
+>                 hero.current_health = min(hero.max_health, hero.current_health + 1)
+>                 progress = 0
+>                 effects["hero_level_delta"] = 1
+>                 effects["narrative"] = f"{hero.name} levels up to level {hero.level}!"
+>                 _grant_level_up_skill(hero)
+>             else:
+>                 effects["narrative"] = (
+>                     f"{hero.name} trains. Progress {progress}/{threshold}."
+>                 )
+  
+>             stats["training_progress"] = progress
+>             hero.stats = stats
+>         else:
+>             effects["narrative"] = f"{hero.name} cannot afford training (cost {cost} gold)."
+>     elif action_type == "special":
+>         from campaign.services.location import apply_location_effects, resolve_location_access
+  
+>         location, find_dice = resolve_location_access(settlement_size, rng)
+>         dice_rolled.extend(find_dice)
+>         if location is None:
+>             effects["party_morale_delta"] -= 1
+>             party.morale -= 1
+>             effects["narrative"] = f"{hero.name} finds no special location in this {settlement_size}."
+>         else:
+>             loc_effects, loc_dice = apply_location_effects(hero, party, location, rng)
+>             dice_rolled.extend(loc_dice)
+>             effects["party_gold_delta"] += loc_effects.get("party_gold_delta", 0)
+>             effects["party_morale_delta"] += loc_effects.get("party_morale_delta", 0)
+>             effects["hero_health_delta"] += loc_effects.get("hero_health_delta", 0)
+>             effects["skill_learned"] = loc_effects.get("skill_learned")
+>             effects["location_visited"] = location.code
+>             effects["rejected"] = loc_effects.get("rejected")
+>             effects["narrative"] = loc_effects.get("narrative", f"{hero.name} visits {location.name}.")
+  
+>     hero.save(update_fields=["current_health", "level", "max_health", "stats", "updated_at"])
+>     party.save(update_fields=["gold", "morale", "updated_at"])
+>     return effects, dice_rolled
+  
+  
+> def _grant_level_up_skill(hero: Hero) -> HeroSkill | None:
+>     """Award the next unlearned archetype skill to a hero who just levelled up."""
+>     already_learned = set(hero.hero_skills.values_list("skill_def_id", flat=True))
+>     skill_def = (
+>         SkillDef.objects.filter(archetype=hero.archetype)
+>         .exclude(id__in=already_learned)
+>         .order_by("name")
+>         .first()
+>     )
+>     if skill_def is None:
+!         return None
+>     return HeroSkill.objects.create(hero=hero, skill_def=skill_def, source="level_up")
+  
+  
+> def _resolve_settlement_event(hero: Hero) -> dict | None:
+>     party = hero.party
+>     campaign = party.campaign
+>     events = list(SettlementEventDef.objects.all())
+>     if not events:
+!         return None
+  
+>     event_seed = _next_seed(campaign, "settlement", "event", f"hero:{hero.id}")
+>     rng = DeterministicRng(event_seed)
+>     weighted_events = [(event, event.weight) for event in events]
+>     selected = rng.weighted_choice(weighted_events)
+>     effects = _apply_event_effects(hero, selected.definition.get("effects", []), rng)
+>     _apply_settlement_rule_flag(hero, selected.definition.get("rule_flag"))
+  
+>     event_log = StepLog.objects.create(
+>         campaign=campaign,
+>         party=party,
+>         hero=hero,
+>         step_type="settlement",
+>         action_type="event",
+>         rng_seed=event_seed,
+>         dice_rolled=[{"die": "d6", "result": rng.d6(), "context": "event-roll"}],
+>         effects_applied=effects,
+>         narrative=selected.definition.get("narrative", selected.name),
+>     )
+  
+>     return {"name": selected.name, "effects": effects, "log_id": event_log.id}
+  
+  
+> def _resolve_catastrophic_event(party: Party) -> dict | None:
+>     campaign = party.campaign
+>     events = list(CatastrophicEventDef.objects.all())
+>     if not events:
+!         return None
+  
+>     event_seed = _next_seed(campaign, "settlement", "catastrophic", f"party:{party.id}")
+>     rng = DeterministicRng(event_seed)
+>     weighted_events = [(event, event.weight) for event in events]
+>     selected = rng.weighted_choice(weighted_events)
+  
+>     effects = _apply_event_effects(None, selected.definition.get("effects", []), rng, party=party)
+>     _apply_catastrophic_state(party, str(selected.definition.get("table_roll", "")))
+>     log = StepLog.objects.create(
+>         campaign=campaign,
+>         party=party,
+>         step_type="settlement",
+>         action_type="catastrophic_event",
+>         rng_seed=event_seed,
+>         dice_rolled=[{"die": "d6", "result": rng.d6(), "context": "catastrophic-roll"}],
+>         effects_applied=effects,
+>         narrative=selected.definition.get("narrative", selected.name),
+>     )
+>     return {"name": selected.name, "effects": effects, "log_id": log.id}
+  
+  
+> def _apply_event_effects(
+>     hero: Hero | None,
+>     effect_defs: list,
+>     rng: DeterministicRng,
+>     party: Party | None = None,
+> ) -> dict:
+>     target_party = party or (hero.party if hero else None)
+>     applied = {"hero_health_delta": 0, "party_gold_delta": 0, "party_morale_delta": 0}
+  
+>     for effect in effect_defs:
+>         effect_type = effect.get("type")
+>         min_value = int(effect.get("min", 0))
+>         max_value = int(effect.get("max", min_value))
+>         value = rng.randint(min_value, max_value) if max_value >= min_value else min_value
+  
+>         if effect_type == "hero_health" and hero:
+>             hero.current_health = max(0, min(hero.max_health, hero.current_health + value))
+>             applied["hero_health_delta"] += value
+>         elif effect_type == "party_gold" and target_party:
+>             target_party.gold = max(0, target_party.gold + value)
+>             applied["party_gold_delta"] += value
+>         elif effect_type == "party_morale" and target_party:
+>             target_party.morale += value
+>             applied["party_morale_delta"] += value
+  
+>     if hero:
+>         hero.save(update_fields=["current_health", "updated_at"])
+>     if target_party:
+>         target_party.save(update_fields=["gold", "morale", "updated_at"])
+>     return applied
+  
+  
+> def _next_seed(campaign, step_type: str, action_type: str, actor_key: str) -> str:
+>     sequence = campaign.step_logs.count() + 1
+>     return derive_step_seed(campaign.seed, step_type, action_type, actor_key, sequence)
+  
+  
+> def _apply_settlement_rule_flag(hero: Hero, rule_flag: str | None) -> None:
+>     if not rule_flag:
+>         return
+  
+>     party = hero.party
+>     if rule_flag == "future_income":
+>         hero.investment_active = True
+>     elif rule_flag in {"forced_departure_or_delay", "may_force_departure"}:
+>         party.forced_departure = True
+>     elif rule_flag == "service_delay":
+>         hero.days_unavailable += 7
+>     elif rule_flag == "bed_rest":
+>         hero.days_unavailable += 2
+>     elif rule_flag == "pet_dog":
+>         hero.has_pet_dog = True
+>     elif rule_flag == "jail":
+>         hero.days_unavailable += 1
+>     elif rule_flag == "reroll_attack_once":
+>         hero.temple_reroll_charges += 1
+>     elif rule_flag == "possible_disguise_or_exile":
+>         hero.in_disguise = True
+>     elif rule_flag == "recovery_delay":
+>         hero.days_unavailable += 1
+  
+>     hero.save(
+>         update_fields=[
+>             "investment_active",
+>             "days_unavailable",
+>             "has_pet_dog",
+>             "temple_reroll_charges",
+>             "in_disguise",
+>             "updated_at",
+>         ]
+>     )
+>     party.save(update_fields=["forced_departure", "updated_at"])
+  
+  
+> def _apply_catastrophic_state(party: Party, table_roll: str) -> None:
+>     if table_roll == "3":
+>         party.forced_departure = True
+>     elif table_roll == "5":
+>         party.hardship_price_multiplier = 4
+>     elif table_roll == "10":
+>         party.disease_risk_active = True
+>     elif table_roll == "11":
+>         party.forced_departure = True
+>     elif table_roll == "12":
+>         party.disease_risk_active = True
+  
+>     party.save(update_fields=["hardship_price_multiplier", "forced_departure", "disease_risk_active", "updated_at"])

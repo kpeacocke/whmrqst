@@ -11,6 +11,7 @@ urlpatterns = [
     path("campaign/<int:campaign_id>/travel/", views.resolve_travel, name="resolve_travel"),
     path("campaign/<int:campaign_id>/action/", views.resolve_hero_action, name="resolve_hero_action"),
     path("campaign/<int:campaign_id>/shop/", views.resolve_shop_transaction, name="resolve_shop_transaction"),
+    path("campaign/<int:campaign_id>/craft/", views.resolve_crafting_action, name="resolve_crafting_action"),
     path("gm/", views.gm_console, name="gm_console"),
     path("gm/seed/", views.seed_warhammer_content, name="seed_warhammer_content"),
     path("step/<int:step_id>/", views.step_log_detail, name="step_log_detail"),

@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 
 from campaign.models import (
     CatastrophicEventDef,
+    CraftingRecipeDef,
     ExpeditionDef,
     HazardDef,
     ItemDef,
@@ -26,6 +27,7 @@ class Command(BaseCommand):
         self._seed_items()
         self._seed_skills()
         self._seed_expeditions()
+        self._seed_crafting_recipes()
         self.stdout.write(self.style.SUCCESS("Warhammer-inspired content tables seeded."))
 
     def _clear_previous_whq_seed(self):
@@ -33,6 +35,7 @@ class Command(BaseCommand):
         SettlementEventDef.objects.filter(definition__source=WHQ_SOURCE).delete()
         CatastrophicEventDef.objects.filter(definition__source=WHQ_SOURCE).delete()
         SettlementLocationDef.objects.filter(definition__source=WHQ_SOURCE).delete()
+        CraftingRecipeDef.objects.filter(definition__source=WHQ_SOURCE).delete()
         ItemDef.objects.filter(definition__source=WHQ_SOURCE).delete()
         SkillDef.objects.filter(definition__source=WHQ_SOURCE).delete()
         ExpeditionDef.objects.filter(definition__source=WHQ_SOURCE).delete()
@@ -65,22 +68,25 @@ class Command(BaseCommand):
 
     def _seed_items(self):
         items = [
-            ("WHQ Sword", "weapon", 75, 3, "Common steel sidearm."),
-            ("WHQ Bow", "weapon", 85, 4, "Reliable hunting bow."),
-            ("WHQ Shield", "armour", 65, 2, "Wood and iron shield."),
-            ("WHQ Chainmail", "armour", 250, 6, "Heavy defensive hauberk."),
-            ("WHQ Provisions", "supply", 10, 1, "One week of supplies."),
-            ("WHQ Healing Draught", "consumable", 120, 5, "Restorative tonic sold in settlements."),
-            ("WHQ Rope", "utility", 15, 1, "Adventuring rope and knots."),
-            ("WHQ Lantern", "utility", 20, 2, "Lantern with a flask of oil."),
+            ("WHQ Sword", "weapon", 75, 3, 5, "Common steel sidearm."),
+            ("WHQ Bow", "weapon", 85, 4, 4, "Reliable hunting bow."),
+            ("WHQ Shield", "armour", 65, 2, 6, "Wood and iron shield."),
+            ("WHQ Chainmail", "armour", 250, 6, 8, "Heavy defensive hauberk."),
+            ("WHQ Provisions", "supply", 10, 1, 2, "One week of supplies."),
+            ("WHQ Healing Draught", "consumable", 120, 5, 1, "Restorative tonic sold in settlements."),
+            ("WHQ Rope", "utility", 15, 1, 2, "Adventuring rope and knots."),
+            ("WHQ Lantern", "utility", 20, 2, 2, "Lantern with a flask of oil."),
+            ("WHQ Exploration Kit", "utility", 50, 3, 3, "Rope and lantern packed into a prepared explorer's kit."),
+            ("WHQ Enhanced Draught", "consumable", 200, 8, 1, "Two healing draughts concentrated into a single, more potent vial."),
         ]
 
-        for name, category, base_price, stock_value, narrative in items:
+        for name, category, base_price, stock_value, weight, narrative in items:
             ItemDef.objects.create(
                 name=name,
                 category=category,
                 base_price=base_price,
                 stock_value=stock_value,
+                weight=weight,
                 definition={
                     "source": WHQ_SOURCE,
                     "book_section": "Settlement Equipment",
@@ -254,6 +260,44 @@ class Command(BaseCommand):
                     "book_section": "Expeditions",
                     "narrative": narrative,
                     "loot_table": loot_tables[code],
+                },
+            )
+
+    def _seed_crafting_recipes(self):
+        recipes = [
+            (
+                "whq_exploration_kit",
+                "WHQ Exploration Kit",
+                [
+                    {"item_name": "WHQ Rope", "quantity": 1},
+                    {"item_name": "WHQ Lantern", "quantity": 1},
+                ],
+                "WHQ Exploration Kit",
+                1,
+                "Bind a rope and lantern into a prepared explorer's kit for extended expeditions.",
+            ),
+            (
+                "whq_enhanced_draught",
+                "WHQ Enhanced Draught",
+                [
+                    {"item_name": "WHQ Healing Draught", "quantity": 2},
+                ],
+                "WHQ Enhanced Draught",
+                1,
+                "Reduce two healing draughts into a single, more potent restoration vial.",
+            ),
+        ]
+        for code, name, ingredients, output_item_name, output_quantity, narrative in recipes:
+            CraftingRecipeDef.objects.create(
+                code=code,
+                name=name,
+                definition={
+                    "source": WHQ_SOURCE,
+                    "book_section": "Crafting",
+                    "narrative": narrative,
+                    "ingredients": ingredients,
+                    "output_item_name": output_item_name,
+                    "output_quantity": output_quantity,
                 },
             )
 

@@ -1,3 +1,5 @@
+name: whmrqst
+
 services:
   web:
     image: whmrqst-django
@@ -29,8 +31,6 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-    ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-questbetween}
       - POSTGRES_USER=${POSTGRES_USER:-questbetween}

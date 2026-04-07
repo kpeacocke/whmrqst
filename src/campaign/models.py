@@ -76,7 +76,26 @@ class ItemDef(TimeStampedModel):
     category = models.CharField(max_length=50)
     base_price = models.PositiveIntegerField(default=0)
     stock_value = models.PositiveIntegerField(default=1)
+    weight = models.PositiveSmallIntegerField(default=0)
     definition = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return self.name
+
+
+class CraftingRecipeDef(TimeStampedModel):
+    code = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=120, unique=True)
+    definition = models.JSONField(default=dict, blank=True)
+    # definition shape:
+    # {
+    #   "source": "whq_roleplay_book",
+    #   "book_section": "Crafting",
+    #   "narrative": "...",
+    #   "ingredients": [{"item_name": "WHQ Rope", "quantity": 1}, ...],
+    #   "output_item_name": "WHQ Exploration Kit",
+    #   "output_quantity": 1
+    # }
 
     def __str__(self):
         return self.name

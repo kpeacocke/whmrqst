@@ -41,11 +41,13 @@ The simplest way to run the application is via Docker Compose. This automaticall
 3. **Start the Application Stack**
 
    **Production mode:**
+
    ```bash
    docker compose -f docker/docker-compose.yml up -d
    ```
 
    **Debug mode** (with debugpy on port 5679):
+
    ```bash
    docker compose -f docker/docker-compose.debug.yml up -d
    ```
@@ -81,8 +83,7 @@ If you prefer to develop outside containers:
    cp .env.example .env
    ```
 
-   For the default Docker setup, `.env.example` already points local Django at PostgreSQL on `localhost:5433`, and `manage.py` will load `.env` automatically.
-   If you are running PostgreSQL separately, update `.env` to match your own host, port, and credentials.
+   If you are running PostgreSQL separately for host-side development, update `.env` to match your own host, port, and credentials.
 
 3. **Run Migrations**
 
@@ -116,20 +117,21 @@ If you prefer to develop outside containers:
 Tests are located in the `tests/` directory. To run tests:
 
 **With Docker:**
+
 ```bash
 docker compose -f docker/docker-compose.yml exec web python manage.py test
 ```
 
 **Locally:**
+
 ```bash
 python manage.py test
 ```
 
-If you are using Docker for PostgreSQL and running Django from the host, start the stack first so the database is listening on `localhost:5433`:
+For a Docker-independent host-side test run, use the dedicated SQLite-backed settings profile:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d db
-python manage.py test
+python manage.py test campaign --settings=questbetween.settings_test
 ```
 
 Ensure all tests pass before submitting a pull request.
