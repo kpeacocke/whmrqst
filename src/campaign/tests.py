@@ -1,5 +1,7 @@
 from unittest.mock import patch
+import json
 
+from django import forms
 from django.test import Client, TestCase
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -63,9 +65,9 @@ class CampaignFoundationTests(TestCase):
             narrative="Party founded in the southern marches.",
         )
 
-        self.assertEqual(campaign.parties.get(), party)
-        self.assertEqual(party.heroes.get(), hero)
-        self.assertEqual(campaign.step_logs.get(), step_log)
+        self.assertEqual(Party.objects.get(campaign=campaign), party)
+        self.assertEqual(Hero.objects.get(party=party), hero)
+        self.assertEqual(StepLog.objects.get(campaign=campaign), step_log)
         self.assertEqual(str(step_log), "campaign:found_party")
 
 
@@ -93,6 +95,8 @@ class PhaseThreeServiceTests(TestCase):
             StepLog.objects.filter(campaign=self.campaign, step_type="travel", action_type="hazard").exists()
         )
         first_log = StepLog.objects.filter(campaign=self.campaign, step_type="travel", action_type="hazard").first()
+        if first_log is None:
+            self.fail("Expected a travel step log to be created")
         self.assertTrue(any(die.get("die") == "d66" for die in first_log.dice_rolled))
 
     def test_settlement_action_logs_action_and_event(self):
@@ -202,7 +206,7 @@ class GmAccessTests(TestCase):
 
     def test_staff_user_can_access_gm_console(self):
         user_model = get_user_model()
-        user = user_model.objects.create_user(username="gm", password="password123", is_staff=True)
+        user = user_model.objects.create(username=self.id(), is_staff=True, is_active=True)
         self.client.force_login(user)
 
         response = self.client.get("/gm/")
@@ -211,7 +215,7 @@ class GmAccessTests(TestCase):
     def test_staff_user_can_filter_gm_console_by_table_roll(self):
         call_command("seed_warhammer_content")
         user_model = get_user_model()
-        user = user_model.objects.create_user(username="gm-filter", password="password123", is_staff=True)
+        user = user_model.objects.create(username=self.id() + "-2", is_staff=True, is_active=True)
         self.client.force_login(user)
 
         response = self.client.get("/gm/", {"source": "whq_roleplay_book", "settlement_roll": "35"})
@@ -265,8 +269,11 @@ class SkillSystemTests(TestCase):
 
         self.warrior.refresh_from_db()
         self.assertEqual(self.warrior.level, 2)
-        self.assertEqual(self.warrior.hero_skills.count(), 1)
-        learned = self.warrior.hero_skills.first().skill_def
+        self.assertEqual(HeroSkill.objects.filter(hero=self.warrior).count(), 1)
+        learned_skill = HeroSkill.objects.select_related("skill_def").filter(hero=self.warrior).first()
+        if learned_skill is None:
+            self.fail("Expected a learned skill after levelling up")
+        learned = learned_skill.skill_def
         self.assertEqual(learned.archetype, "warrior")
 
     def test_special_action_alehouse_increases_morale(self):
@@ -403,8 +410,8 @@ class ExpeditionServiceTests(TestCase):
 
     def test_expedition_view_endpoint_runs_and_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/expedition/",
-            {"expedition_def": self.expedition_def.id, "risk_level": Expedition.RiskLevel.STANDARD},
+            f"/campaign/{self.campaign.pk}/expedition/",
+            {"expedition_def": self.expedition_def.pk, "risk_level": Expedition.RiskLevel.STANDARD},
         )
 
         self.assertEqual(response.status_code, 302)
@@ -872,7 +879,7 @@ class LocationServiceTests(TestCase):
         from .services.rng import DeterministicRng
 
         rng = DeterministicRng("stable-seed")
-        location, dice = resolve_location_access("town", rng)
+        location, _ = resolve_location_access("town", rng)
         self.assertIsNotNone(location)
 
     def test_resolve_location_access_city_rolls_for_optional_locations(self):
@@ -884,6 +891,30 @@ class LocationServiceTests(TestCase):
         self.assertIsNotNone(location)
         # Dice should have been rolled for non-always-available locations.
         self.assertTrue(any(d.get("context") == "location-find" for d in dice))
+
+    def test_resolve_location_access_town_does_not_double_count_always_available(self):
+        from .services.location import resolve_location_access
+        from .services.rng import DeterministicRng
+
+        alehouse = SettlementLocationDef.objects.get(code="alehouse")
+        alehouse.town_find_target = 2
+        alehouse.save(update_fields=["town_find_target", "updated_at"])
+
+        rng = DeterministicRng("dedupe-seed")
+        # Two d6 rolls per candidate; return 1 for deterministic successful finds.
+        with patch.object(rng, "d6", return_value=1):
+            location, _dice = resolve_location_access("town", rng)
+
+        self.assertIsNotNone(location)
+
+    def test_resolve_location_access_invalid_settlement_size_raises_value_error(self):
+        from .services.location import resolve_location_access
+        from .services.rng import DeterministicRng
+
+        rng = DeterministicRng("invalid-size-seed")
+
+        with self.assertRaises(ValueError):
+            resolve_location_access("dungeon", rng)
 
     def test_apply_location_temple_with_sufficient_gold(self):
         from .services.location import apply_location_effects
@@ -1201,15 +1232,72 @@ class SettlementEdgeCaseTests(TestCase):
             HeroSkill.objects.get_or_create(hero=self.hero, skill_def=skill, defaults={"source": "test"})
         self.party.gold = 500
         self.party.save(update_fields=["gold", "updated_at"])
-        resolve_settlement_action(self.hero, "train")
-        resolve_settlement_action(self.hero, "train")
+        with patch("campaign.services.settlement._resolve_settlement_event", return_value=None):
+            resolve_settlement_action(self.hero, "train")
+            resolve_settlement_action(self.hero, "train")
         self.hero.refresh_from_db()
         self.assertEqual(self.hero.level, 2)
         # No additional skill should have been granted beyond what already existed.
         self.assertEqual(
-            self.hero.hero_skills.count(),
+            HeroSkill.objects.filter(hero=self.hero).count(),
             SkillDef.objects.filter(archetype="warrior").count(),
         )
+
+    def test_unavailable_hero_cannot_act_and_day_advances(self):
+        """A hero with days_unavailable > 0 is blocked from acting; day and week still advance."""
+        self.hero.days_unavailable = 2
+        self.hero.save(update_fields=["days_unavailable", "updated_at"])
+        starting_day = self.campaign.current_day
+
+        result = resolve_settlement_action(self.hero, "rest")
+
+        self.hero.refresh_from_db()
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.hero.days_unavailable, 1)
+        self.assertEqual(self.campaign.current_day, starting_day + 1)
+        self.assertIsNone(result["action_log_id"])
+        self.assertIn("unavailable", result["action_effects"]["narrative"])
+        self.assertTrue(
+            StepLog.objects.filter(campaign=self.campaign, action_type="unavailable").exists()
+        )
+
+    def test_unavailable_hero_last_day_narrative_says_recovered(self):
+        """When days_unavailable reaches 0, narrative says the hero has recovered."""
+        self.hero.days_unavailable = 1
+        self.hero.save(update_fields=["days_unavailable", "updated_at"])
+
+        result = resolve_settlement_action(self.hero, "rest")
+
+        self.hero.refresh_from_db()
+        self.assertEqual(self.hero.days_unavailable, 0)
+        self.assertIn("recovered", result["action_effects"]["narrative"])
+
+    def test_rest_clears_injured_condition_when_hero_reaches_full_health(self):
+        """Resting to full health removes the injured condition."""
+        self.hero.current_health = self.hero.max_health - 2
+        self.hero.conditions = ["injured"]
+        self.hero.save(update_fields=["current_health", "conditions", "updated_at"])
+
+        with patch("campaign.services.settlement._resolve_settlement_event", return_value=None):
+            resolve_settlement_action(self.hero, "rest")
+
+        self.hero.refresh_from_db()
+        self.assertEqual(self.hero.current_health, self.hero.max_health)
+        self.assertNotIn("injured", self.hero.conditions)
+
+    def test_rest_retains_injured_condition_when_not_yet_at_full_health(self):
+        """Hero NOT at full health keeps the injured condition."""
+        self.hero.current_health = self.hero.max_health - 4
+        self.hero.conditions = ["injured"]
+        self.hero.save(update_fields=["current_health", "conditions", "updated_at"])
+
+        with patch("campaign.services.settlement._resolve_settlement_event", return_value=None):
+            resolve_settlement_action(self.hero, "rest")
+
+        self.hero.refresh_from_db()
+        self.assertLess(self.hero.current_health, self.hero.max_health)
+        self.assertIn("injured", self.hero.conditions)
+
 
 
 # ---------------------------------------------------------------------------
@@ -1227,7 +1315,11 @@ class FormTests(TestCase):
         from .forms import ShopTransactionForm
 
         form = ShopTransactionForm()
-        self.assertIsNotNone(form.fields["item_def"].queryset)
+        field = form.fields["item_def"]
+        self.assertIsInstance(field, forms.ModelChoiceField)
+        if not isinstance(field, forms.ModelChoiceField):
+            self.fail("item_def should be a ModelChoiceField")
+        self.assertIsNotNone(field.queryset)
 
     def test_hero_action_form_init_with_party_filters_heroes(self):
         from .forms import HeroActionForm
@@ -1237,13 +1329,21 @@ class FormTests(TestCase):
             archetype=Hero.Archetype.WARRIOR, level=1, max_health=10, current_health=10,
         )
         form = HeroActionForm(party=self.party)
-        self.assertIn(hero, form.fields["hero"].queryset)
+        field = form.fields["hero"]
+        self.assertIsInstance(field, forms.ModelChoiceField)
+        if not isinstance(field, forms.ModelChoiceField):
+            self.fail("hero should be a ModelChoiceField")
+        self.assertIn(hero, field.queryset)
 
     def test_hero_action_form_init_without_party_uses_empty_queryset(self):
         from .forms import HeroActionForm
 
         form = HeroActionForm()
-        self.assertEqual(form.fields["hero"].queryset.count(), 0)
+        field = form.fields["hero"]
+        self.assertIsInstance(field, forms.ModelChoiceField)
+        if not isinstance(field, forms.ModelChoiceField):
+            self.fail("hero should be a ModelChoiceField")
+        self.assertEqual(field.queryset.count(), 0)
 
 
 # ---------------------------------------------------------------------------
@@ -1253,12 +1353,12 @@ class FormTests(TestCase):
 class ViewTests(TestCase):
     def setUp(self):
         self.client = Client()
-        User = get_user_model()
-        self.staff_user = User.objects.create_user(
-            username="view-staff", password="password123", is_staff=True
+        user_model = get_user_model()
+        self.staff_user = user_model.objects.create(
+            username="staff-" + self._testMethodName, is_staff=True, is_active=True
         )
-        self.regular_user = User.objects.create_user(
-            username="view-player", password="password123", is_staff=False
+        self.regular_user = user_model.objects.create(
+            username="player-" + self._testMethodName, is_staff=False, is_active=True
         )
         self.campaign = Campaign.objects.create(name="View Campaign", seed="view-seed-001")
         self.party = Party.objects.create(
@@ -1287,27 +1387,269 @@ class ViewTests(TestCase):
         response = self.client.post("/", {"name": "", "seed": ""})
         self.assertEqual(response.status_code, 200)
 
+    def test_campaign_import_creates_campaign_from_payload(self):
+        payload = {
+            "campaign": {"name": "Imported Campaign", "seed": "import-seed", "current_day": 3, "current_week": 1},
+            "parties": [{"legacy_id": 1, "name": "Imported Party", "gold": 12, "supplies": 4, "morale": 1}],
+            "heroes": [{"legacy_id": 10, "party_legacy_id": 1, "name": "Imported Hero", "archetype": "warrior", "level": 2, "max_health": 11, "current_health": 9}],
+            "inventory_items": [],
+            "hero_skills": [],
+            "expeditions": [],
+            "step_logs": [],
+        }
+
+        response = self.client.post(
+            "/campaign/import/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Campaign.objects.filter(name="Imported Campaign (Imported)").exists())
+
+    def test_campaign_import_with_empty_payload_warns_and_redirects(self):
+        response = self.client.post("/campaign/import/", {"payload": "   "})
+        self.assertEqual(response.status_code, 302)
+
+    def test_campaign_import_with_invalid_json_errors_and_redirects(self):
+        response = self.client.post("/campaign/import/", {"payload": "{not-json}"})
+        self.assertEqual(response.status_code, 302)
+
+    def test_campaign_import_with_non_object_json_errors_and_redirects(self):
+        response = self.client.post("/campaign/import/", {"payload": "[]"})
+        self.assertEqual(response.status_code, 302)
+
+    def test_campaign_import_seed_collision_generates_unique_seed(self):
+        Campaign.objects.create(name="Existing Import", seed="import-seed-import")
+        payload = {
+            "campaign": {"name": "Imported Campaign", "seed": "import-seed"},
+            "parties": [],
+            "heroes": [],
+            "inventory_items": [],
+            "hero_skills": [],
+            "expeditions": [],
+            "step_logs": [],
+        }
+
+        response = self.client.post(
+            "/campaign/import/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        imported = Campaign.objects.filter(name="Imported Campaign (Imported)").latest("id")
+        self.assertTrue(imported.seed.startswith("import-seed-import"))
+        self.assertNotEqual(imported.seed, "import-seed-import")
+
+    def test_campaign_import_skips_invalid_related_rows_and_imports_valid_rows(self):
+        ExpeditionDef.objects.get_or_create(
+            code="import-test-expedition",
+            defaults={
+                "name": "Import Test Expedition",
+                "base_reward_min": 1,
+                "base_reward_max": 2,
+                "base_supply_cost": 1,
+                "base_injury_risk": 1,
+                "difficulty": 1,
+                "definition": {"source": "test_suite"},
+            },
+        )
+        skill = SkillDef.objects.filter(archetype="warrior").first()
+        if skill is None:
+            self.fail("Expected seeded warrior skill")
+
+        payload = {
+            "campaign": {"name": "Import Branches", "seed": "branch-seed"},
+            "parties": [
+                {"legacy_id": 1, "name": "Valid Party", "gold": 9, "supplies": 4, "morale": 0},
+            ],
+            "heroes": [
+                {"legacy_id": 10, "party_legacy_id": 999, "name": "Skipped Hero"},
+                {"legacy_id": 11, "party_legacy_id": 1, "name": "Valid Hero", "archetype": "warrior"},
+            ],
+            "inventory_items": [
+                {"party_legacy_id": 999, "item_name": "WHQ Rope", "quantity": 1},
+                {"party_legacy_id": 1, "item_name": "Unknown Item", "quantity": 1},
+                {"party_legacy_id": 1, "hero_legacy_id": 11, "item_name": "WHQ Rope", "quantity": 2},
+            ],
+            "hero_skills": [
+                {"hero_legacy_id": None, "skill_name": skill.name},
+                {"hero_legacy_id": 999, "skill_name": skill.name},
+                {"hero_legacy_id": 11, "skill_name": "Unknown Skill"},
+                {"hero_legacy_id": 11, "skill_name": skill.name, "source": "import"},
+            ],
+            "expeditions": [
+                {"party_legacy_id": None, "expedition_code": "import-test-expedition", "risk_level": "standard"},
+                {"party_legacy_id": 999, "expedition_code": "import-test-expedition", "risk_level": "standard"},
+                {"party_legacy_id": 1, "expedition_code": "unknown-expedition", "risk_level": "standard"},
+                {"party_legacy_id": 1, "expedition_code": "import-test-expedition", "risk_level": "standard"},
+            ],
+            "step_logs": [
+                {
+                    "party_legacy_id": None,
+                    "hero_legacy_id": None,
+                    "step_type": "import",
+                    "action_type": "import",
+                    "rng_seed": "seed",
+                    "dice_rolled": [],
+                    "effects_applied": {},
+                    "narrative": "Imported log",
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/campaign/import/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        imported = Campaign.objects.get(name="Import Branches (Imported)")
+        imported_party = Party.objects.get(campaign=imported, name="Valid Party")
+        imported_hero = Hero.objects.get(party=imported_party, name="Valid Hero")
+        self.assertEqual(Hero.objects.filter(party__campaign=imported, name="Skipped Hero").count(), 0)
+        self.assertEqual(InventoryItem.objects.filter(party=imported_party, hero=imported_hero).count(), 1)
+        self.assertEqual(HeroSkill.objects.filter(hero=imported_hero).count(), 1)
+        self.assertEqual(Expedition.objects.filter(campaign=imported).count(), 1)
+        self.assertEqual(StepLog.objects.filter(campaign=imported, action_type="import").count(), 1)
+
+    def test_campaign_import_skips_malformed_numeric_rows_without_500(self):
+        payload = {
+            "campaign": {"name": "Import Malformed", "seed": "malformed-seed"},
+            "parties": [
+                {"legacy_id": "bad-id", "name": "Skip Party", "gold": "x"},
+                {"legacy_id": 1, "name": "Valid Party", "gold": "7", "supplies": "2", "morale": "1"},
+            ],
+            "heroes": [
+                {"legacy_id": "bad-hero", "party_legacy_id": 1, "name": "Skip Hero"},
+                {"legacy_id": 2, "party_legacy_id": "bad-party", "name": "Skip Hero 2"},
+                {"legacy_id": 3, "party_legacy_id": 1, "name": "Valid Hero", "archetype": "warrior"},
+            ],
+            "inventory_items": [
+                {"party_legacy_id": "bad-party", "item_name": "WHQ Rope", "quantity": 1},
+                {"party_legacy_id": 1, "hero_legacy_id": "bad-hero", "item_name": "WHQ Rope", "quantity": 1},
+                {"party_legacy_id": 1, "hero_legacy_id": 3, "item_name": "WHQ Rope", "quantity": "3"},
+            ],
+            "hero_skills": [
+                {"hero_legacy_id": "bad-hero", "skill_name": "Anything"},
+            ],
+            "expeditions": [
+                {"party_legacy_id": "bad-party", "expedition_code": "road_escort", "risk_level": "standard"},
+            ],
+            "step_logs": [
+                {
+                    "party_legacy_id": "bad-party",
+                    "hero_legacy_id": "bad-hero",
+                    "step_type": "import",
+                    "action_type": "import",
+                    "rng_seed": "seed",
+                },
+            ],
+        }
+
+        response = self.client.post(
+            "/campaign/import/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        imported = Campaign.objects.get(name="Import Malformed (Imported)")
+        imported_party = Party.objects.get(campaign=imported, name="Valid Party")
+        self.assertEqual(Hero.objects.filter(party=imported_party, name="Valid Hero").count(), 1)
+        self.assertEqual(Hero.objects.filter(party=imported_party, name="Skip Hero").count(), 0)
+
+    def test_campaign_import_skips_malformed_campaign_day_and_week_without_500(self):
+        payload = {
+            "campaign": {
+                "name": "Import Campaign Header",
+                "seed": "campaign-header-seed",
+                "current_day": "bad-day",
+                "current_week": 0,
+            },
+            "parties": [],
+            "heroes": [],
+            "inventory_items": [],
+            "hero_skills": [],
+            "expeditions": [],
+            "step_logs": [],
+        }
+
+        response = self.client.post(
+            "/campaign/import/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        imported = Campaign.objects.get(name="Import Campaign Header (Imported)")
+        self.assertEqual(imported.current_day, 1)
+        self.assertEqual(imported.current_week, 1)
+
+    def test_campaign_export_returns_json_payload(self):
+        response = self.client.get(f"/campaign/{self.campaign.pk}/export/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        payload = json.loads(response.content)
+        self.assertEqual(payload["campaign"]["name"], self.campaign.name)
+
+    def test_campaign_rename_updates_name(self):
+        response = self.client.post(
+            f"/campaign/{self.campaign.pk}/rename/",
+            {"name": "Renamed View Campaign"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.name, "Renamed View Campaign")
+
+    def test_campaign_rename_rejects_blank_name(self):
+        original_name = self.campaign.name
+        response = self.client.post(
+            f"/campaign/{self.campaign.pk}/rename/",
+            {"name": "   "},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.name, original_name)
+
+    def test_campaign_delete_removes_campaign(self):
+        campaign_id = self.campaign.pk
+        response = self.client.post(f"/campaign/{campaign_id}/delete/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Campaign.objects.filter(pk=campaign_id).exists())
+
+    def test_campaign_detail_includes_delete_confirmation_prompt(self):
+        response = self.client.get(f"/campaign/{self.campaign.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Delete this campaign and all associated progress?")
+
     # --- Campaign detail ---
 
     def test_campaign_detail_get_renders(self):
-        response = self.client.get(f"/campaign/{self.campaign.id}/")
+        response = self.client.get(f"/campaign/{self.campaign.pk}/")
         self.assertEqual(response.status_code, 200)
 
     def test_campaign_detail_post_create_party(self):
         campaign2 = Campaign.objects.create(name="Empty", seed="empty-view-seed")
         response = self.client.post(
-            f"/campaign/{campaign2.id}/",
-            {"create_type": "party", "campaign": campaign2.id, "name": "New Party", "gold": "10", "supplies": "5", "morale": "0"},
+            f"/campaign/{campaign2.pk}/",
+            {"create_type": "party", "campaign": campaign2.pk, "name": "New Party", "gold": "10", "supplies": "5", "morale": "0"},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(campaign2.parties.filter(name="New Party").exists())
+        self.assertTrue(Party.objects.filter(campaign=campaign2, name="New Party").exists())
 
     def test_campaign_detail_post_create_hero(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/",
+            f"/campaign/{self.campaign.pk}/",
             {
                 "create_type": "hero",
-                "party": self.party.id,
+                "party": self.party.pk,
                 "name": "New Hero",
                 "archetype": "warrior",
                 "level": "1",
@@ -1316,21 +1658,21 @@ class ViewTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(self.party.heroes.filter(name="New Hero").exists())
+        self.assertTrue(Hero.objects.filter(party=self.party, name="New Hero").exists())
 
     # --- Expedition view ---
 
     def test_resolve_expedition_with_no_party_returns_404(self):
         campaign_empty = Campaign.objects.create(name="Empty Expd", seed="empty-expd-seed")
         response = self.client.post(
-            f"/campaign/{campaign_empty.id}/expedition/",
-            {"expedition_def": self.expedition_def.id, "risk_level": "standard"},
+            f"/campaign/{campaign_empty.pk}/expedition/",
+            {"expedition_def": self.expedition_def.pk, "risk_level": "standard"},
         )
         self.assertEqual(response.status_code, 404)
 
     def test_resolve_expedition_with_invalid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/expedition/",
+            f"/campaign/{self.campaign.pk}/expedition/",
             {"expedition_def": "", "risk_level": ""},
         )
         self.assertEqual(response.status_code, 302)
@@ -1339,7 +1681,7 @@ class ViewTests(TestCase):
 
     def test_resolve_travel_with_valid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/travel/",
+            f"/campaign/{self.campaign.pk}/travel/",
             {"settlement_size": "village"},
         )
         self.assertEqual(response.status_code, 302)
@@ -1347,14 +1689,14 @@ class ViewTests(TestCase):
     def test_resolve_travel_with_no_party_returns_404(self):
         campaign_empty = Campaign.objects.create(name="Empty Travel", seed="empty-travel-seed")
         response = self.client.post(
-            f"/campaign/{campaign_empty.id}/travel/",
+            f"/campaign/{campaign_empty.pk}/travel/",
             {"settlement_size": "village"},
         )
         self.assertEqual(response.status_code, 404)
 
     def test_resolve_travel_with_invalid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/travel/",
+            f"/campaign/{self.campaign.pk}/travel/",
             {"settlement_size": ""},
         )
         self.assertEqual(response.status_code, 302)
@@ -1363,22 +1705,22 @@ class ViewTests(TestCase):
 
     def test_resolve_hero_action_valid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/action/",
-            {"hero": self.hero.id, "action_type": "rest", "settlement_size": "town"},
+            f"/campaign/{self.campaign.pk}/action/",
+            {"hero": self.hero.pk, "action_type": "rest", "settlement_size": "town"},
         )
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_hero_action_with_no_party_returns_404(self):
         campaign_empty = Campaign.objects.create(name="Empty Action", seed="empty-action-seed")
         response = self.client.post(
-            f"/campaign/{campaign_empty.id}/action/",
-            {"hero": self.hero.id, "action_type": "rest", "settlement_size": "town"},
+            f"/campaign/{campaign_empty.pk}/action/",
+            {"hero": self.hero.pk, "action_type": "rest", "settlement_size": "town"},
         )
         self.assertEqual(response.status_code, 404)
 
     def test_resolve_hero_action_invalid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/action/",
+            f"/campaign/{self.campaign.pk}/action/",
             {"hero": "", "action_type": "rest"},
         )
         self.assertEqual(response.status_code, 302)
@@ -1387,11 +1729,11 @@ class ViewTests(TestCase):
 
     def test_resolve_shop_transaction_buy_success_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/shop/",
+            f"/campaign/{self.campaign.pk}/shop/",
             {
                 "transaction_type": "buy",
                 "settlement_size": "city",
-                "item_def": self.item.id,
+                "item_def": self.item.pk,
                 "quantity": "1",
             },
         )
@@ -1401,11 +1743,11 @@ class ViewTests(TestCase):
         self.party.gold = 0
         self.party.save(update_fields=["gold", "updated_at"])
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/shop/",
+            f"/campaign/{self.campaign.pk}/shop/",
             {
                 "transaction_type": "buy",
                 "settlement_size": "city",
-                "item_def": self.item.id,
+                "item_def": self.item.pk,
                 "quantity": "1",
             },
         )
@@ -1414,11 +1756,11 @@ class ViewTests(TestCase):
     def test_resolve_shop_transaction_with_no_party_returns_404(self):
         campaign_empty = Campaign.objects.create(name="Empty Shop", seed="empty-shop-seed")
         response = self.client.post(
-            f"/campaign/{campaign_empty.id}/shop/",
+            f"/campaign/{campaign_empty.pk}/shop/",
             {
                 "transaction_type": "buy",
                 "settlement_size": "city",
-                "item_def": self.item.id,
+                "item_def": self.item.pk,
                 "quantity": "1",
             },
         )
@@ -1426,7 +1768,7 @@ class ViewTests(TestCase):
 
     def test_resolve_shop_transaction_invalid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/shop/",
+            f"/campaign/{self.campaign.pk}/shop/",
             {"transaction_type": "", "settlement_size": "", "item_def": "", "quantity": ""},
         )
         self.assertEqual(response.status_code, 302)
@@ -1492,6 +1834,20 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(SettlementLocationDef.objects.filter(code="test-new-loc").exists())
 
+    def test_gm_console_post_invalid_form_rerenders_without_redirect(self):
+        self.client.force_login(self.staff_user)
+        response = self.client.post(
+            "/gm/",
+            {
+                "form_kind": "hazard",
+                "hazard-name": "",
+                "hazard-settlement_size": "",
+                "hazard-severity": "",
+                "hazard-definition": "{}",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
     def test_gm_console_filter_by_hazard_roll(self):
         self.client.force_login(self.staff_user)
         response = self.client.get("/gm/", {"hazard_roll": "11"})
@@ -1513,6 +1869,14 @@ class ViewTests(TestCase):
         response = self.client.post("/gm/seed/")
         self.assertEqual(response.status_code, 302)
 
+    def test_seed_warhammer_content_view_sets_success_message(self):
+        self.client.force_login(self.staff_user)
+        response = self.client.post("/gm/seed/", follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        messages = list(response.context["messages"])
+        self.assertTrue(any("Safe to run again" in str(message) for message in messages))
+
     # --- Step log detail ---
 
     def test_step_log_detail_requires_login(self):
@@ -1522,10 +1886,10 @@ class ViewTests(TestCase):
             action_type="detail",
             rng_seed="seed",
         )
-        response = self.client.get(f"/step/{step.id}/")
+        response = self.client.get(f"/step/{step.pk}/")
         self.assertIn(response.status_code, [302, 403])
 
-    def test_step_log_detail_renders_for_logged_in_user(self):
+    def test_step_log_detail_requires_staff_user(self):
         self.client.force_login(self.regular_user)
         step = StepLog.objects.create(
             campaign=self.campaign,
@@ -1533,7 +1897,18 @@ class ViewTests(TestCase):
             action_type="detail",
             rng_seed="seed",
         )
-        response = self.client.get(f"/step/{step.id}/")
+        response = self.client.get(f"/step/{step.pk}/")
+        self.assertIn(response.status_code, [302, 403])
+
+    def test_step_log_detail_renders_for_staff_user(self):
+        self.client.force_login(self.staff_user)
+        step = StepLog.objects.create(
+            campaign=self.campaign,
+            step_type="test",
+            action_type="detail",
+            rng_seed="seed",
+        )
+        response = self.client.get(f"/step/{step.pk}/")
         self.assertEqual(response.status_code, 200)
 
 
@@ -1582,7 +1957,6 @@ class EncumbranceTests(TestCase):
         InventoryItem.objects.create(
             party=self.party, hero=self.hero, item_def=light_item, quantity=3
         )
-        # 4*1 + 1*3 = 7
         self.assertEqual(get_hero_carry_weight(self.hero), 7)
 
     def test_party_encumbrance_penalty_is_zero_when_not_overloaded(self):
@@ -1680,7 +2054,8 @@ class CraftingServiceTests(TestCase):
         log = StepLog.objects.filter(
             campaign=self.campaign, step_type="crafting", action_type="craft"
         ).first()
-        self.assertIsNotNone(log)
+        if log is None:
+            self.fail("Expected a crafting step log on success")
         self.assertEqual(log.effects_applied["status"], "success")
 
     def test_crafting_stacks_output_with_existing_inventory(self):
@@ -1701,7 +2076,9 @@ class CraftingServiceTests(TestCase):
         resolve_crafting(party=self.party, recipe_def=self.recipe_kit, hero=self.hero)
 
         log = StepLog.objects.filter(campaign=self.campaign, action_type="craft").first()
-        self.assertEqual(log.hero_id, self.hero.id)
+        if log is None:
+            self.fail("Expected a crafting step log when crafting with a hero")
+        self.assertEqual(log.hero, self.hero)
 
     def test_crafting_consumes_excess_ingredient_quantity(self):
         InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=3)
@@ -1796,36 +2173,36 @@ class CraftingViewTests(TestCase):
         InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=1)
 
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/craft/",
-            {"recipe_def": self.recipe.id},
+            f"/campaign/{self.campaign.pk}/craft/",
+            {"recipe_def": self.recipe.pk},
         )
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_crafting_with_no_party_returns_404(self):
         campaign_empty = Campaign.objects.create(name="Empty Craft", seed="empty-craft-seed")
         response = self.client.post(
-            f"/campaign/{campaign_empty.id}/craft/",
-            {"recipe_def": self.recipe.id},
+            f"/campaign/{campaign_empty.pk}/craft/",
+            {"recipe_def": self.recipe.pk},
         )
         self.assertEqual(response.status_code, 404)
 
     def test_resolve_crafting_with_invalid_form_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/craft/",
+            f"/campaign/{self.campaign.pk}/craft/",
             {"recipe_def": ""},
         )
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_crafting_with_insufficient_ingredients_redirects(self):
         response = self.client.post(
-            f"/campaign/{self.campaign.id}/craft/",
-            {"recipe_def": self.recipe.id},
+            f"/campaign/{self.campaign.pk}/craft/",
+            {"recipe_def": self.recipe.pk},
         )
         self.assertEqual(response.status_code, 302)
 
     def test_gm_console_post_crafting_recipe_form_creates_recipe(self):
-        User = get_user_model()
-        staff = User.objects.create_user(username="gm-craft", password="pw123", is_staff=True)
+        user_model = get_user_model()
+        staff = user_model.objects.create(username=self.id(), is_staff=True, is_active=True)
         self.client.force_login(staff)
         response = self.client.post(
             "/gm/",

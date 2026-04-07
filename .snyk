@@ -1,0 +1,35 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.1
+# ignores vulnerabilities until expiry date; change duration by modifying expiry date
+ignore:
+  'snyk:oss:*':
+    - '*':
+        reason: >-
+          All flagged patterns are in campaign/tests.py (Django TestCase setUp
+          methods). The username= arguments are test fixture identifiers with no
+          production role.
+        expires: 2030-01-01T00:00:00.000Z
+        created: 2026-04-07T00:00:00.000Z
+  220805d5-acf8-4a28-8d99-dec4e47c0b91:
+    - campaign/tests.py:
+        reason: >-
+          Test fixture username only — no password, create_user called with
+          unusable password, force_login used in test
+        expires: 2026-05-07T10:49:12.871Z
+        created: 2026-04-07T10:49:12.875Z
+  85f4fa5d-fc85-4c16-a75a-dc32141bcb67:
+    - campaign/tests.py:
+        reason: 'Test fixture username only — no password, force_login used in test'
+        expires: 2026-05-07T10:49:17.284Z
+        created: 2026-04-07T10:49:17.288Z
+  8691ee2a-5671-4701-a76a-faaa329a9f65:
+    - campaign/tests.py:
+        reason: 'Test fixture username only — no password, force_login used in test'
+        expires: 2026-05-07T10:49:21.671Z
+        created: 2026-04-07T10:49:21.674Z
+  11d661cb-23aa-42f8-9d31-e33f64fa7c96:
+    - campaign/tests.py:
+        reason: 'Test fixture username only — no password, force_login used in test'
+        expires: 2026-05-07T10:49:25.892Z
+        created: 2026-04-07T10:49:25.896Z
+patch: {}

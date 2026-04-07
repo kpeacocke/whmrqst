@@ -238,6 +238,10 @@ class StepLog(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["campaign", "created_at"]),
+            models.Index(fields=["campaign", "step_type", "action_type"]),
+        ]
 
     def __str__(self):
         return f"{self.step_type}:{self.action_type}"

@@ -12,6 +12,14 @@
         {{ form.as_p }}
         <button type="submit" class="btn btn-primary">Create Campaign</button>
     </form>
+
+    <h2 class="heading-md">Import Campaign</h2>
+    <form method="post" action="{% url 'campaign:import_campaign' %}" class="stacked-form">
+        {% csrf_token %}
+        <label for="import_payload">Campaign JSON</label>
+        <textarea id="import_payload" name="payload" rows="8" placeholder='{"campaign": {"name": "Imported"}}'></textarea>
+        <button type="submit" class="btn">Import Campaign</button>
+    </form>
 </section>
 
 <section class="panel">

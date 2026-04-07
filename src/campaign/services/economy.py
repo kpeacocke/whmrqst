@@ -45,6 +45,7 @@ def _buy_item(
 ) -> dict[str, Any]:
     stock_dice_count = STOCK_DICE_BY_SETTLEMENT.get(settlement_size, 1)
     stock_rolls = [rng.d6() for _ in range(stock_dice_count)]
+    # Stock value acts as the threshold difficulty for how many units can be found.
     stock_total = sum(stock_rolls)
     available_stock = max(0, stock_total - max(1, item_def.stock_value) + 1)
 

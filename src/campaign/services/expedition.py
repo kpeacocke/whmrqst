@@ -32,13 +32,7 @@ RISK_CONFIG = {
 @transaction.atomic
 def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: str) -> dict[str, Any]:
     campaign = party.campaign
-    heroes = list(Hero.objects.filter(party=party).order_by("id"))
-    if not heroes:
-        raise ValueError("Party must have at least one hero")
-
-    living_heroes = [hero for hero in heroes if hero.alive]
-    if not living_heroes:
-        raise ValueError("Party has no living heroes")
+    living_heroes = _get_living_heroes(party)
 
     sequence = StepLog.objects.filter(campaign=campaign).count() + 1
     seed = derive_step_seed(campaign.seed, "expedition", "run", f"party:{party.pk}", sequence)
@@ -56,68 +50,19 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
     base_reward = int(reward_roll * float(config["reward_pct"]))
     gold_delta = base_reward if is_success else max(0, base_reward // 3)
 
-    supply_cost = max(1, int(expedition_def.base_supply_cost))
-    if risk_level == "cautious":
-        supply_cost = max(1, supply_cost - 1)
-    elif risk_level == "reckless":
-        supply_cost += 1
-
-    injuries = []
-    deaths = []
-    conditions_gained = []
+    supply_cost = _get_supply_cost(expedition_def, risk_level)
     dice_rolled = [
         {"die": "2d6", "result": challenge_roll, "context": "challenge-roll"},
         {"die": "d100", "result": reward_roll, "context": "reward-roll"},
     ]
-
-    for hero in living_heroes:
-        injury_target = max(
-            2,
-            int(expedition_def.base_injury_risk)
-            + int(config["injury_mod"])
-            + int(encumbrance_penalty["agility_penalty"]),
-        )
-        injury_roll = rng.d6()
-        dice_rolled.append(
-            {
-                "die": "d6",
-                "result": injury_roll,
-                "target": injury_target,
-                "hero": hero.name,
-                "context": "injury-check",
-            }
-        )
-
-        if injury_roll <= injury_target:
-            damage = rng.randint(1, 3)
-            hero.current_health = max(0, hero.current_health - damage)
-            dice_rolled.append(
-                {
-                    "die": "d3",
-                    "result": damage,
-                    "hero": hero.name,
-                    "context": "injury-damage",
-                }
-            )
-
-            conditions = list(hero.conditions)
-            if hero.current_health == 0:
-                hero.alive = False
-                if "dead" not in conditions:
-                    conditions.append("dead")
-                deaths.append({"hero": hero.name, "damage": damage})
-                hero.conditions = conditions
-                hero.save(update_fields=["current_health", "alive", "conditions", "updated_at"])
-            else:
-                if "injured" not in conditions:
-                    conditions.append("injured")
-                hero.conditions = conditions
-                hero.save(update_fields=["current_health", "conditions", "updated_at"])
-
-            injuries.append({"hero": hero.name, "damage": damage, "dead": hero.current_health == 0})
-            conditions_gained.append({"hero": hero.name, "conditions": list(hero.conditions)})
-
-        _apply_expedition_progression(hero)
+    injuries, deaths, conditions_gained = _resolve_expedition_injuries(
+        living_heroes=living_heroes,
+        expedition_def=expedition_def,
+        config=config,
+        encumbrance_penalty=encumbrance_penalty,
+        rng=rng,
+        dice_rolled=dice_rolled,
+    )
 
     party.gold += gold_delta
     party.supplies = max(0, party.supplies - supply_cost)
@@ -180,6 +125,106 @@ def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: 
         "narrative": narrative,
         **effects,
     }
+
+
+def _get_living_heroes(party: Party) -> list[Hero]:
+    heroes = list(Hero.objects.filter(party=party).order_by("id"))
+    if not heroes:
+        raise ValueError("Party must have at least one hero")
+
+    living_heroes = [hero for hero in heroes if hero.alive]
+    if not living_heroes:
+        raise ValueError("Party has no living heroes")
+    return living_heroes
+
+
+def _get_supply_cost(expedition_def: ExpeditionDef, risk_level: str) -> int:
+    supply_cost = max(1, int(expedition_def.base_supply_cost))
+    if risk_level == "cautious":
+        return max(1, supply_cost - 1)
+    if risk_level == "reckless":
+        return supply_cost + 1
+    return supply_cost
+
+
+def _resolve_expedition_injuries(
+    living_heroes: list[Hero],
+    expedition_def: ExpeditionDef,
+    config: dict[str, float | int],
+    encumbrance_penalty: dict[str, int],
+    rng: DeterministicRng,
+    dice_rolled: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    injuries: list[dict[str, Any]] = []
+    deaths: list[dict[str, Any]] = []
+    conditions_gained: list[dict[str, Any]] = []
+    injury_target = max(
+        2,
+        int(expedition_def.base_injury_risk)
+        + int(config["injury_mod"])
+        + int(encumbrance_penalty["agility_penalty"]),
+    )
+
+    for hero in living_heroes:
+        injury_roll = rng.d6()
+        dice_rolled.append(
+            {
+                "die": "d6",
+                "result": injury_roll,
+                "target": injury_target,
+                "hero": hero.name,
+                "context": "injury-check",
+            }
+        )
+
+        if injury_roll <= injury_target:
+            injury_record, death_record, condition_record = _apply_expedition_injury(hero, rng, dice_rolled)
+            injuries.append(injury_record)
+            conditions_gained.append(condition_record)
+            if death_record is not None:
+                deaths.append(death_record)
+
+        _apply_expedition_progression(hero)
+
+    return injuries, deaths, conditions_gained
+
+
+def _apply_expedition_injury(
+    hero: Hero,
+    rng: DeterministicRng,
+    dice_rolled: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any]]:
+    damage = rng.randint(1, 3)
+    hero.current_health = max(0, hero.current_health - damage)
+    dice_rolled.append(
+        {
+            "die": "d3",
+            "result": damage,
+            "hero": hero.name,
+            "context": "injury-damage",
+        }
+    )
+
+    conditions = list(hero.conditions)
+    death_record: dict[str, Any] | None = None
+    if hero.current_health == 0:
+        hero.alive = False
+        if "dead" not in conditions:
+            conditions.append("dead")
+        death_record = {"hero": hero.name, "damage": damage}
+        hero.conditions = conditions
+        hero.save(update_fields=["current_health", "alive", "conditions", "updated_at"])
+    else:
+        if "injured" not in conditions:
+            conditions.append("injured")
+        hero.conditions = conditions
+        hero.save(update_fields=["current_health", "conditions", "updated_at"])
+
+    return (
+        {"hero": hero.name, "damage": damage, "dead": hero.current_health == 0},
+        death_record,
+        {"hero": hero.name, "conditions": list(hero.conditions)},
+    )
 
 
 def _apply_expedition_progression(hero: Hero) -> None:

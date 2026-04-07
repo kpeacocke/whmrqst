@@ -1,10 +1,12 @@
 {
-  "$schema": "https://raw.githubusercontent.com/microsoft/pyright/main/packages/pyright/schema/pyrightconfig.schema.json",
   "typeCheckingMode": "basic",
   "include": [
     "src"
   ],
   "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
     "src/campaign/migrations",
     "src/game"
   ]

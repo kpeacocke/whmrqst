@@ -10,6 +10,40 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
     party = hero.party
     campaign = party.campaign
 
+    # Enforce unavailability: hero cannot act; day still passes.
+    if hero.days_unavailable > 0:
+        hero.days_unavailable = max(0, hero.days_unavailable - 1)
+        hero.save(update_fields=["days_unavailable", "updated_at"])
+        campaign.current_day += 1
+        campaign.current_week = ((campaign.current_day - 1) // 7) + 1
+        campaign.save(update_fields=["current_day", "current_week", "updated_at"])
+        remaining = hero.days_unavailable
+        narrative = (
+            f"{hero.name} is unavailable ({remaining} day(s) remaining)."
+            if remaining > 0
+            else f"{hero.name} has recovered and is available again."
+        )
+        unavail_seed = _next_seed(campaign, "settlement", "unavailable", f"hero:{hero.pk}")
+        StepLog.objects.create(
+            campaign=campaign,
+            party=party,
+            hero=hero,
+            step_type="settlement",
+            action_type="unavailable",
+            rng_seed=unavail_seed,
+            dice_rolled=[],
+            effects_applied={"days_unavailable_delta": -1},
+            narrative=narrative,
+        )
+        return {
+            "action_log_id": None,
+            "action_effects": {"narrative": narrative},
+            "settlement_event": None,
+            "catastrophic_event": None,
+            "current_day": campaign.current_day,
+            "current_week": campaign.current_week,
+        }
+
     action_seed = _next_seed(campaign, "settlement", action_type, f"hero:{hero.pk}")
     rng = DeterministicRng(action_seed)
     action_effects, action_dice = _apply_daily_action(hero, action_type, settlement_size, rng)
@@ -56,64 +90,92 @@ def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng:
         "narrative": "",
     }
     dice_rolled = []
+    should_grant_level_up_skill = False
 
     if action_type in {"rest", "heal"}:
-        healed = min(2, hero.max_health - hero.current_health)
-        hero.current_health += healed
-        effects["hero_health_delta"] += healed
-        effects["narrative"] = f"{hero.name} rests and recovers {healed} health."
+        _apply_rest_or_heal(hero, effects)
     elif action_type == "train":
-        cost = 10 * max(1, hero.level)
-        if party.gold >= cost:
-            party.gold -= cost
-            party.morale += 1
-            effects["party_gold_delta"] -= cost
-            effects["party_morale_delta"] += 1
-            stats = dict(hero.stats or {})
-            progress = int(stats.get("training_progress", 0)) + 1
-            threshold = max(2, hero.level * 2)
-            effects["training_progress_delta"] = 1
-
-            if progress >= threshold:
-                hero.level += 1
-                hero.max_health += 1
-                hero.current_health = min(hero.max_health, hero.current_health + 1)
-                progress = 0
-                effects["hero_level_delta"] = 1
-                effects["narrative"] = f"{hero.name} levels up to level {hero.level}!"
-                _grant_level_up_skill(hero)
-            else:
-                effects["narrative"] = (
-                    f"{hero.name} trains. Progress {progress}/{threshold}."
-                )
-
-            stats["training_progress"] = progress
-            hero.stats = stats
-        else:
-            effects["narrative"] = f"{hero.name} cannot afford training (cost {cost} gold)."
+        should_grant_level_up_skill = _apply_training(hero, party, effects)
     elif action_type == "special":
-        from campaign.services.location import apply_location_effects, resolve_location_access
+        _apply_special_action(hero, party, settlement_size, rng, effects, dice_rolled)
 
-        location, find_dice = resolve_location_access(settlement_size, rng)
-        dice_rolled.extend(find_dice)
-        if location is None:
-            effects["party_morale_delta"] -= 1
-            party.morale -= 1
-            effects["narrative"] = f"{hero.name} finds no special location in this {settlement_size}."
-        else:
-            loc_effects, loc_dice = apply_location_effects(hero, party, location, rng)
-            dice_rolled.extend(loc_dice)
-            effects["party_gold_delta"] += int(loc_effects.get("party_gold_delta", 0))
-            effects["party_morale_delta"] += int(loc_effects.get("party_morale_delta", 0))
-            effects["hero_health_delta"] += int(loc_effects.get("hero_health_delta", 0))
-            effects["skill_learned"] = loc_effects.get("skill_learned")
-            effects["location_visited"] = location.code
-            effects["rejected"] = loc_effects.get("rejected")
-            effects["narrative"] = loc_effects.get("narrative", f"{hero.name} visits {location.name}.")
-
-    hero.save(update_fields=["current_health", "level", "max_health", "stats", "updated_at"])
+    hero.save(update_fields=["current_health", "level", "max_health", "stats", "conditions", "updated_at"])
     party.save(update_fields=["gold", "morale", "updated_at"])
+    if should_grant_level_up_skill:
+        _grant_level_up_skill(hero)
     return effects, dice_rolled
+
+
+def _apply_rest_or_heal(hero: Hero, effects: dict[str, Any]) -> None:
+    healed = min(2, hero.max_health - hero.current_health)
+    hero.current_health += healed
+    effects["hero_health_delta"] += healed
+    conditions = list(hero.conditions)
+    if hero.current_health >= hero.max_health and "injured" in conditions:
+        conditions.remove("injured")
+        hero.conditions = conditions
+    effects["narrative"] = f"{hero.name} rests and recovers {healed} health."
+
+
+def _apply_training(hero: Hero, party: Party, effects: dict[str, Any]) -> bool:
+    cost = 10 * max(1, hero.level)
+    if party.gold < cost:
+        effects["narrative"] = f"{hero.name} cannot afford training (cost {cost} gold)."
+        return False
+
+    party.gold -= cost
+    party.morale += 1
+    effects["party_gold_delta"] -= cost
+    effects["party_morale_delta"] += 1
+    effects["training_progress_delta"] = 1
+
+    stats = dict(hero.stats or {})
+    progress = int(stats.get("training_progress", 0)) + 1
+    threshold = max(2, hero.level * 2)
+
+    if progress >= threshold:
+        hero.level += 1
+        hero.max_health += 1
+        hero.current_health = min(hero.max_health, hero.current_health + 1)
+        stats["training_progress"] = 0
+        hero.stats = stats
+        effects["hero_level_delta"] = 1
+        effects["narrative"] = f"{hero.name} levels up to level {hero.level}!"
+        return True
+
+    stats["training_progress"] = progress
+    hero.stats = stats
+    effects["narrative"] = f"{hero.name} trains. Progress {progress}/{threshold}."
+    return False
+
+
+def _apply_special_action(
+    hero: Hero,
+    party: Party,
+    settlement_size: str,
+    rng: DeterministicRng,
+    effects: dict[str, Any],
+    dice_rolled: list[dict[str, Any]],
+) -> None:
+    from campaign.services.location import apply_location_effects, resolve_location_access
+
+    location, find_dice = resolve_location_access(settlement_size, rng)
+    dice_rolled.extend(find_dice)
+    if location is None:
+        effects["party_morale_delta"] -= 1
+        party.morale -= 1
+        effects["narrative"] = f"{hero.name} finds no special location in this {settlement_size}."
+        return
+
+    loc_effects, loc_dice = apply_location_effects(hero, party, location, rng)
+    dice_rolled.extend(loc_dice)
+    effects["party_gold_delta"] += int(loc_effects.get("party_gold_delta", 0))
+    effects["party_morale_delta"] += int(loc_effects.get("party_morale_delta", 0))
+    effects["hero_health_delta"] += int(loc_effects.get("hero_health_delta", 0))
+    effects["skill_learned"] = loc_effects.get("skill_learned")
+    effects["location_visited"] = location.code
+    effects["rejected"] = loc_effects.get("rejected")
+    effects["narrative"] = loc_effects.get("narrative", f"{hero.name} visits {location.name}.")
 
 
 def _grant_level_up_skill(hero: Hero) -> HeroSkill | None:

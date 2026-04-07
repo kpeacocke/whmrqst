@@ -29,6 +29,32 @@
         <h1 class="heading-xl">{{ campaign.name }}</h1>
         <p class="lede">Week {{ campaign.current_week }} · Day {{ campaign.current_day }} · Seed {{ campaign.seed }}</p>
 
+        <div class="action-grid">
+            <article class="card">
+                <h3 class="heading-md">Rename Campaign</h3>
+                <form method="post" action="{% url 'campaign:rename_campaign' campaign_id=campaign.id %}" class="stacked-form">
+                    {% csrf_token %}
+                    <label for="campaign_name">Name</label>
+                    <input id="campaign_name" name="name" type="text" value="{{ campaign.name }}" maxlength="120" required>
+                    <button type="submit" class="btn">Rename</button>
+                </form>
+            </article>
+
+            <article class="card">
+                <h3 class="heading-md">Export Campaign</h3>
+                <p class="small-note">Download JSON snapshot of campaign state.</p>
+                <a class="btn" href="{% url 'campaign:export_campaign' campaign_id=campaign.id %}">Export JSON</a>
+            </article>
+
+            <article class="card">
+                <h3 class="heading-md">Delete Campaign</h3>
+                <form method="post" action="{% url 'campaign:delete_campaign' campaign_id=campaign.id %}" class="stacked-form" onsubmit="return confirm('Delete this campaign and all associated progress? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn">Delete Campaign</button>
+                </form>
+            </article>
+        </div>
+
         {% include "campaign/partials/choice_list.html" %}
 
         <div class="action-grid">

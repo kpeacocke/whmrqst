@@ -4,6 +4,9 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+PARTY_MODEL = 'campaign.party'
+
+
 class Migration(migrations.Migration):
 
     initial = True
@@ -175,7 +178,7 @@ class Migration(migrations.Migration):
                 ('item_state', models.JSONField(blank=True, default=dict)),
                 ('hero', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='inventory_items', to='campaign.hero')),
                 ('item_def', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='inventory_items', to='campaign.itemdef')),
-                ('party', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inventory_items', to='campaign.party')),
+                ('party', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inventory_items', to=PARTY_MODEL)),
             ],
             options={
                 'abstract': False,
@@ -184,7 +187,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='hero',
             name='party',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='heroes', to='campaign.party'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='heroes', to=PARTY_MODEL),
         ),
         migrations.CreateModel(
             name='StepLog',
@@ -199,7 +202,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('campaign', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='step_logs', to='campaign.campaign')),
                 ('hero', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='step_logs', to='campaign.hero')),
-                ('party', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='step_logs', to='campaign.party')),
+                ('party', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='step_logs', to=PARTY_MODEL)),
             ],
             options={
                 'ordering': ['created_at', 'id'],

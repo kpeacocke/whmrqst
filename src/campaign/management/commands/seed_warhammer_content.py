@@ -13,6 +13,13 @@ from campaign.models import (
 
 
 WHQ_SOURCE = "whq_roleplay_book"
+SPECIAL_LOCATIONS_SECTION = "Special Locations"
+UNEVENTFUL_DAY_NARRATIVE = "Nothing of note happens today."
+ITEM_HEALING_DRAUGHT = "WHQ Healing Draught"
+ITEM_ROPE = "WHQ Rope"
+ITEM_LANTERN = "WHQ Lantern"
+ITEM_EXPLORATION_KIT = "WHQ Exploration Kit"
+ITEM_ENHANCED_DRAUGHT = "WHQ Enhanced Draught"
 
 
 class Command(BaseCommand):
@@ -73,11 +80,11 @@ class Command(BaseCommand):
             ("WHQ Shield", "armour", 65, 2, 6, "Wood and iron shield."),
             ("WHQ Chainmail", "armour", 250, 6, 8, "Heavy defensive hauberk."),
             ("WHQ Provisions", "supply", 10, 1, 2, "One week of supplies."),
-            ("WHQ Healing Draught", "consumable", 120, 5, 1, "Restorative tonic sold in settlements."),
-            ("WHQ Rope", "utility", 15, 1, 2, "Adventuring rope and knots."),
-            ("WHQ Lantern", "utility", 20, 2, 2, "Lantern with a flask of oil."),
-            ("WHQ Exploration Kit", "utility", 50, 3, 3, "Rope and lantern packed into a prepared explorer's kit."),
-            ("WHQ Enhanced Draught", "consumable", 200, 8, 1, "Two healing draughts concentrated into a single, more potent vial."),
+            (ITEM_HEALING_DRAUGHT, "consumable", 120, 5, 1, "Restorative tonic sold in settlements."),
+            (ITEM_ROPE, "utility", 15, 1, 2, "Adventuring rope and knots."),
+            (ITEM_LANTERN, "utility", 20, 2, 2, "Lantern with a flask of oil."),
+            (ITEM_EXPLORATION_KIT, "utility", 50, 3, 3, "Rope and lantern packed into a prepared explorer's kit."),
+            (ITEM_ENHANCED_DRAUGHT, "consumable", 200, 8, 1, "Two healing draughts concentrated into a single, more potent vial."),
         ]
 
         for name, category, base_price, stock_value, weight, narrative in items:
@@ -105,7 +112,7 @@ class Command(BaseCommand):
                 "city_find_target": None,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Always available in villages, towns, and cities.",
                 },
             },
@@ -118,7 +125,7 @@ class Command(BaseCommand):
                 "city_find_target": 7,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Transmutes one unused item into gold for a fee.",
                 },
             },
@@ -131,7 +138,7 @@ class Command(BaseCommand):
                 "city_find_target": 7,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Dwarf-only access to lock tools, firebombs, and runesmith services.",
                 },
             },
@@ -144,7 +151,7 @@ class Command(BaseCommand):
                 "city_find_target": 7,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Elf-only access to elven gear, waybread, and master craftsmen.",
                 },
             },
@@ -157,7 +164,7 @@ class Command(BaseCommand):
                 "city_find_target": 7,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "May be visited repeatedly; wagers up to 200 gold per day.",
                 },
             },
@@ -170,7 +177,7 @@ class Command(BaseCommand):
                 "city_find_target": 7,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "50 gold donation grants one roll on temple blessings.",
                 },
             },
@@ -183,7 +190,7 @@ class Command(BaseCommand):
                 "city_find_target": 7,
                 "definition": {
                     "source": WHQ_SOURCE,
-                    "book_section": "Special Locations",
+                    "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Wizard-only consultations, potions, and staff recharging.",
                 },
             },
@@ -219,25 +226,25 @@ class Command(BaseCommand):
     def _seed_expeditions(self):
         loot_tables = {
             "ruins_delve": [
-                {"item_name": "WHQ Rope", "weight": 4},
-                {"item_name": "WHQ Lantern", "weight": 3},
-                {"item_name": "WHQ Healing Draught", "weight": 3},
+                {"item_name": ITEM_ROPE, "weight": 4},
+                {"item_name": ITEM_LANTERN, "weight": 3},
+                {"item_name": ITEM_HEALING_DRAUGHT, "weight": 3},
             ],
             "road_escort": [
+                {"item_name": ITEM_ROPE, "weight": 3},
+                {"item_name": ITEM_HEALING_DRAUGHT, "weight": 2},
                 {"item_name": "WHQ Provisions", "weight": 5},
-                {"item_name": "WHQ Rope", "weight": 3},
-                {"item_name": "WHQ Healing Draught", "weight": 2},
             ],
             "beast_hunt": [
-                {"item_name": "WHQ Healing Draught", "weight": 4},
+                {"item_name": ITEM_HEALING_DRAUGHT, "weight": 4},
                 {"item_name": "WHQ Bow", "weight": 3},
-                {"item_name": "WHQ Rope", "weight": 3},
+                {"item_name": ITEM_ROPE, "weight": 3},
             ],
             "relic_recovery": [
-                {"item_name": "WHQ Healing Draught", "weight": 3},
+                {"item_name": ITEM_HEALING_DRAUGHT, "weight": 3},
                 {"item_name": "WHQ Chainmail", "weight": 2},
                 {"item_name": "WHQ Sword", "weight": 3},
-                {"item_name": "WHQ Lantern", "weight": 2},
+                {"item_name": ITEM_LANTERN, "weight": 2},
             ],
         }
         expeditions = [
@@ -267,22 +274,22 @@ class Command(BaseCommand):
         recipes = [
             (
                 "whq_exploration_kit",
-                "WHQ Exploration Kit",
+                ITEM_EXPLORATION_KIT,
                 [
-                    {"item_name": "WHQ Rope", "quantity": 1},
-                    {"item_name": "WHQ Lantern", "quantity": 1},
+                    {"item_name": ITEM_ROPE, "quantity": 1},
+                    {"item_name": ITEM_LANTERN, "quantity": 1},
                 ],
-                "WHQ Exploration Kit",
+                ITEM_EXPLORATION_KIT,
                 1,
                 "Bind a rope and lantern into a prepared explorer's kit for extended expeditions.",
             ),
             (
                 "whq_enhanced_draught",
-                "WHQ Enhanced Draught",
+                ITEM_ENHANCED_DRAUGHT,
                 [
-                    {"item_name": "WHQ Healing Draught", "quantity": 2},
+                    {"item_name": ITEM_HEALING_DRAUGHT, "quantity": 2},
                 ],
-                "WHQ Enhanced Draught",
+                ITEM_ENHANCED_DRAUGHT,
                 1,
                 "Reduce two healing draughts into a single, more potent restoration vial.",
             ),
@@ -367,39 +374,39 @@ class Command(BaseCommand):
         events = [
             ("WHQ 11 Thrown Out", 1, {"table_roll": "11", "narrative": "Wild behaviour gets the warrior expelled from town.", "effects": [{"type": "party_gold", "min": -6, "max": -1}, {"type": "party_morale", "min": -2, "max": -1}]}),
             ("WHQ 12 Pickpocket", 1, {"table_roll": "12", "narrative": "A thief cuts the purse strings in a crowded street.", "effects": [{"type": "party_gold", "min": -6, "max": -1}]}),
-            ("WHQ 13 Uneventful Day", 1, {"table_roll": "13", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 13 Uneventful Day", 1, {"table_roll": "13", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 14 Good Deed", 1, {"table_roll": "14", "narrative": "A supposed rescue becomes a blunt street robbery.", "effects": [{"type": "party_gold", "min": -6, "max": -1}]}),
             ("WHQ 15 Investment", 1, {"table_roll": "15", "narrative": "A merchant sells a share in a risky trading venture.", "effects": [{"type": "party_gold", "min": -5, "max": -1}], "rule_flag": "future_income"}),
             ("WHQ 16 Steam Bath", 1, {"table_roll": "16", "narrative": "A steam bath leaves the warrior feeling hardier.", "effects": [{"type": "hero_health", "min": 1, "max": 2}]}),
             ("WHQ 21 Fight", 1, {"table_roll": "21", "narrative": "A market dispute escalates into a profitable or costly brawl.", "effects": [{"type": "party_gold", "min": -6, "max": 6}]}),
-            ("WHQ 22 Uneventful Day", 1, {"table_roll": "22", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 22 Uneventful Day", 1, {"table_roll": "22", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 23 Fooled", 1, {"table_roll": "23", "narrative": "A purchase is revealed as a fake and discarded.", "effects": [{"type": "party_gold", "min": -4, "max": -1}]}),
             ("WHQ 24 Circus", 1, {"table_roll": "24", "narrative": "A travelling circus and fortune teller lighten the purse.", "effects": [{"type": "party_gold", "min": -6, "max": -2}]}),
             ("WHQ 25 Reward", 1, {"table_roll": "25", "narrative": "A murderer hunt can end in reward, bribe, or disappointment.", "effects": [{"type": "party_gold", "min": -5, "max": 5}]}),
             ("WHQ 26 Betrothed", 1, {"table_roll": "26", "narrative": "A mistaken identity lands the warrior in a forced betrothal.", "effects": [{"type": "party_morale", "min": -2, "max": -1}], "rule_flag": "forced_departure_or_delay"}),
             ("WHQ 31 Drugged", 1, {"table_roll": "31", "narrative": "A strange drink leaves the warrior weakened or merely hungover.", "effects": [{"type": "hero_health", "min": -2, "max": 0}]}),
-            ("WHQ 32 Uneventful Day", 1, {"table_roll": "32", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 32 Uneventful Day", 1, {"table_roll": "32", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 33 Honest Day's Work", 1, {"table_roll": "33", "narrative": "Hard labour at the docks earns a modest wage.", "effects": [{"type": "party_gold", "min": 2, "max": 2}]}),
             ("WHQ 34 Riotous Living", 1, {"table_roll": "34", "narrative": "Comfort and extravagance burn through coin.", "effects": [{"type": "party_gold", "min": -5, "max": -5}]}),
             ("WHQ 35 Duel", 1, {"table_roll": "35", "narrative": "A tavern insult leads to a dawn duel with serious stakes.", "effects": [{"type": "hero_health", "min": -3, "max": -1}, {"type": "party_gold", "min": -2, "max": 10}], "rule_flag": "may_force_departure"}),
-            ("WHQ 36 Uneventful Day", 1, {"table_roll": "36", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 36 Uneventful Day", 1, {"table_roll": "36", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 41 Gambling", 1, {"table_roll": "41", "narrative": "A shady dice game swings wildly between loss and gain.", "effects": [{"type": "party_gold", "min": -6, "max": 18}]}),
-            ("WHQ 42 Uneventful Day", 1, {"table_roll": "42", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 42 Uneventful Day", 1, {"table_roll": "42", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 43 Join the Watch", 1, {"table_roll": "43", "narrative": "The watch pressgangs the warrior for a week of service.", "effects": [{"type": "party_gold", "min": -4, "max": 2}], "rule_flag": "service_delay"}),
             ("WHQ 44 Illness", 1, {"table_roll": "44", "narrative": "Illness forces bed rest, medicine costs, and lost time.", "effects": [{"type": "party_gold", "min": -2, "max": -2}, {"type": "hero_health", "min": -2, "max": -1}], "rule_flag": "bed_rest"}),
             ("WHQ 45 Pet Dog", 1, {"table_roll": "45", "narrative": "A stray dog adopts the warrior and becomes an expensive companion.", "effects": [{"type": "party_gold", "min": -1, "max": -1}, {"type": "party_morale", "min": 1, "max": 2}], "rule_flag": "pet_dog"}),
             ("WHQ 46 Runaway Bull", 1, {"table_roll": "46", "narrative": "A runaway bull brings chaos, injury, and possible applause.", "effects": [{"type": "hero_health", "min": -2, "max": -1}, {"type": "party_gold", "min": -10, "max": 15}]}),
             ("WHQ 51 Crime", 1, {"table_roll": "51", "narrative": "The warrior is jailed on a false murder charge until bailed out.", "effects": [{"type": "party_gold", "min": -3, "max": -1}, {"type": "party_morale", "min": -2, "max": -1}], "rule_flag": "jail"}),
-            ("WHQ 52 Uneventful Day", 1, {"table_roll": "52", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 52 Uneventful Day", 1, {"table_roll": "52", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 53 Counterfeit", 1, {"table_roll": "53", "narrative": "Counterfeit coin is discovered and confiscated.", "effects": [{"type": "party_gold", "min": -6, "max": -1}], "rule_flag": "may_force_departure"}),
             ("WHQ 54 Beggars", 1, {"table_roll": "54", "narrative": "Beggars strip coin from the compassionate or desperate.", "effects": [{"type": "party_gold", "min": -6, "max": 2}, {"type": "party_morale", "min": 0, "max": 2}]}),
             ("WHQ 55 Debt", 1, {"table_roll": "55", "narrative": "An old debt collector arrives with ruinous interest.", "effects": [{"type": "party_gold", "min": -6, "max": -2}]}),
-            ("WHQ 56 Uneventful Day", 1, {"table_roll": "56", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 56 Uneventful Day", 1, {"table_roll": "56", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 61 Temple Donation", 1, {"table_roll": "61", "narrative": "A donation buys divine favour for the next fight.", "effects": [{"type": "party_gold", "min": -5, "max": -1}, {"type": "party_morale", "min": 1, "max": 2}], "rule_flag": "reroll_attack_once"}),
-            ("WHQ 62 Uneventful Day", 1, {"table_roll": "62", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 62 Uneventful Day", 1, {"table_roll": "62", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 63 Hunting", 1, {"table_roll": "63", "narrative": "A ridiculous night hunt wastes the day to no effect.", "effects": []}),
             ("WHQ 64 Witchcraft", 1, {"table_roll": "64", "narrative": "An angry mob accuses the warrior of witchcraft.", "effects": [{"type": "party_gold", "min": 0, "max": 5}, {"type": "party_morale", "min": -2, "max": 1}], "rule_flag": "possible_disguise_or_exile"}),
-            ("WHQ 65 Uneventful Day", 1, {"table_roll": "65", "narrative": "Nothing of note happens today.", "effects": []}),
+            ("WHQ 65 Uneventful Day", 1, {"table_roll": "65", "narrative": UNEVENTFUL_DAY_NARRATIVE, "effects": []}),
             ("WHQ 66 Accident", 1, {"table_roll": "66", "narrative": "A wagon accident sends the warrior to the infirmary for days.", "effects": [{"type": "hero_health", "min": -2, "max": -1}], "rule_flag": "recovery_delay"}),
         ]
 
