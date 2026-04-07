@@ -6,22 +6,9 @@
     <div><span>Morale:</span> {{ party.morale }}</div>
 </div>
 <h3 class="heading-md">Heroes</h3>
-<ul class="record-list">
+<ul class="record-list hero-list">
     {% for hero in party.heroes.all %}
-    <li>
-        <strong>{{ hero.name }}</strong>
-        <span>{{ hero.get_archetype_display }} · L{{ hero.level }}</span>
-        <span>HP {{ hero.current_health }}/{{ hero.max_health }}</span>
-        {% with skills=hero.hero_skills.select_related %}
-        {% if skills %}
-        <ul class="skill-list">
-            {% for hs in skills %}
-            <li>{{ hs.skill_def.name }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-        {% endwith %}
-    </li>
+    <li>{% include "campaign/partials/hero_card.html" with hero=hero %}</li>
     {% empty %}
     <li>No heroes in party.</li>
     {% endfor %}

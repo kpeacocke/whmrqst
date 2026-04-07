@@ -1,0 +1,19 @@
+<article class="hero-card">
+    <header>
+        <strong>{{ hero.name }}</strong>
+        <span>{{ hero.get_archetype_display }} · L{{ hero.level }}</span>
+    </header>
+    <p>HP {{ hero.current_health }}/{{ hero.max_health }}</p>
+    {% if hero.conditions %}
+    <p class="small-note">Conditions: {{ hero.conditions|join:", " }}</p>
+    {% endif %}
+    {% with skills=hero.hero_skills.select_related %}
+    {% if skills %}
+    <ul class="skill-list">
+        {% for hs in skills %}
+        <li>{{ hs.skill_def.name }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endwith %}
+</article>

@@ -16,12 +16,12 @@
 
 <section class="panel">
     <h2 class="heading-lg">Existing Campaigns</h2>
-    <ul class="record-list">
+    <ul class="record-list campaign-list">
         {% for campaign in campaigns %}
         <li>
             <a href="{% url 'campaign:campaign_detail' campaign_id=campaign.id %}">{{ campaign.name }}</a>
-            <span>Seed: {{ campaign.seed }}</span>
-            <span>Week {{ campaign.current_week }}, Day {{ campaign.current_day }}</span>
+            <span class="small-note">Seed: {{ campaign.seed }}</span>
+            <span class="small-note">Week {{ campaign.current_week }}, Day {{ campaign.current_day }}</span>
         </li>
         {% empty %}
         <li>No campaigns yet.</li>

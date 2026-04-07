@@ -17,6 +17,7 @@
     --space-lg: 1.5rem;
     --space-xl: 2.25rem;
     --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 * {
@@ -68,6 +69,11 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     padding: var(--space-lg);
+}
+
+.small-note {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
 }
 
 .three-column {
@@ -128,6 +134,20 @@ body {
     border-radius: var(--radius);
     padding: var(--space-md);
     background: rgba(255, 255, 255, 0.01);
+}
+
+.choice-list ul {
+    margin-top: var(--space-sm);
+}
+
+.choice-list a {
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.choice-list a:hover,
+.choice-list a:focus-visible {
+    color: var(--accent-gold);
 }
 
 .stacked-form p {
@@ -192,6 +212,43 @@ textarea {
     padding: 0.55rem 0.65rem;
     display: grid;
     gap: 0.15rem;
+}
+
+.hero-card {
+    display: grid;
+    gap: 0.3rem;
+}
+
+.hero-card header {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    align-items: baseline;
+}
+
+.hero-card p {
+    margin: 0;
+}
+
+.hero-list {
+    margin-bottom: var(--space-md);
+}
+
+.skill-list {
+    list-style: none;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.skill-list li {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.12rem 0.45rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
 }
 
 .record-list a {
@@ -262,6 +319,46 @@ textarea {
 
 .event-card {
     margin-top: var(--space-md);
+}
+
+.settlement-shell,
+.expedition-report-shell {
+    margin-top: var(--space-md);
+}
+
+.chronicle-note {
+    color: var(--text-secondary);
+}
+
+.chronicle-time {
+    font-size: 0.9rem;
+    color: var(--neutral);
+}
+
+.campaign-list li,
+.chronicle-list li {
+    box-shadow: var(--shadow-soft);
+}
+
+.reveal-item {
+    opacity: 0;
+    transform: translateY(5px);
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.reveal-item.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .impact-pill,
+    .reveal-item {
+        animation: none !important;
+        transition: none !important;
+        transform: none !important;
+        opacity: 1 !important;
+    }
 }
 
 @keyframes impact-positive {

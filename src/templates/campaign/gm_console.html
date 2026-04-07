@@ -108,4 +108,24 @@
         {% endfor %}
     </ul>
 </section>
+
+<section class="panel">
+    <h2 class="heading-lg">Crafting Recipes</h2>
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        <input type="hidden" name="form_kind" value="crafting_recipe">
+        {{ crafting_recipe_form.as_p }}
+        <button type="submit" class="btn">Save Crafting Recipe</button>
+    </form>
+    <ul class="record-list">
+        {% for item in crafting_recipes %}
+        <li>
+            <strong>{{ item.code }} · {{ item.name }}</strong>
+            <span>{{ item.definition.narrative|default:"No narrative" }}</span>
+        </li>
+        {% empty %}
+        <li>No recipes configured.</li>
+        {% endfor %}
+    </ul>
+</section>
 {% endblock %}

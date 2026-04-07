@@ -29,8 +29,10 @@
         <h1 class="heading-xl">{{ campaign.name }}</h1>
         <p class="lede">Week {{ campaign.current_week }} · Day {{ campaign.current_day }} · Seed {{ campaign.seed }}</p>
 
+        {% include "campaign/partials/choice_list.html" %}
+
         <div class="action-grid">
-            <article class="card">
+            <article class="card" id="action-expedition">
                 <h3 class="heading-md">Expedition</h3>
                 <form method="post" action="{% url 'campaign:resolve_expedition_run' campaign_id=campaign.id %}" class="stacked-form">
                     {% csrf_token %}
@@ -44,7 +46,7 @@
                 {% endif %}
             </article>
 
-            <article class="card">
+            <article class="card" id="action-travel">
                 <h3 class="heading-md">Travel Hazards</h3>
                 <form method="post" action="{% url 'campaign:resolve_travel' campaign_id=campaign.id %}" class="stacked-form">
                     {% csrf_token %}
@@ -53,7 +55,7 @@
                 </form>
             </article>
 
-            <article class="card">
+            <article class="card" id="action-settlement">
                 <h3 class="heading-md">Settlement Action</h3>
                 <form method="post" action="{% url 'campaign:resolve_hero_action' campaign_id=campaign.id %}" class="stacked-form">
                     {% csrf_token %}
@@ -62,7 +64,7 @@
                 </form>
             </article>
 
-            <article class="card">
+            <article class="card" id="action-shop">
                 <h3 class="heading-md">Settlement Shop</h3>
                 <form method="post" action="{% url 'campaign:resolve_shop_transaction' campaign_id=campaign.id %}" class="stacked-form">
                     {% csrf_token %}
@@ -70,9 +72,20 @@
                     <button type="submit" class="btn btn-primary">Apply Transaction</button>
                 </form>
             </article>
+
+            <article class="card" id="action-crafting">
+                <h3 class="heading-md">Crafting</h3>
+                <form method="post" action="{% url 'campaign:resolve_crafting_action' campaign_id=campaign.id %}" class="stacked-form">
+                    {% csrf_token %}
+                    {{ crafting_form.as_p }}
+                    <button type="submit" class="btn btn-primary">Craft Item</button>
+                </form>
+            </article>
         </div>
 
         {% include "campaign/partials/event_card.html" %}
+        {% include "campaign/partials/settlement_shell.html" %}
+        {% include "campaign/partials/expedition_report_shell.html" %}
     </section>
 
     <aside class="panel side-panel">
