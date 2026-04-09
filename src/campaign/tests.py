@@ -5,6 +5,7 @@ from django import forms
 from django.test import Client, TestCase
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.db import connection
 
 from .models import (
     Campaign,
@@ -43,6 +44,7 @@ class CampaignFoundationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(response.content, {"status": "ok"})
+        self.assertIn("X-Request-ID", response)
 
     def test_campaign_party_and_step_log_relationships(self):
         campaign = Campaign.objects.create(name="Southern March", seed="seed-001")
@@ -1298,6 +1300,23 @@ class SettlementEdgeCaseTests(TestCase):
         self.assertLess(self.hero.current_health, self.hero.max_health)
         self.assertIn("injured", self.hero.conditions)
 
+    def test_training_rolls_back_changes_when_event_resolution_fails(self):
+        self.party.gold = 500
+        self.party.save(update_fields=["gold", "updated_at"])
+        starting_day = self.campaign.current_day
+
+        with patch("campaign.services.settlement._resolve_settlement_event", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                resolve_settlement_action(self.hero, "train")
+
+        self.hero.refresh_from_db()
+        self.party.refresh_from_db()
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.hero.level, 1)
+        self.assertEqual(self.hero.stats.get("training_progress", 0), 0)
+        self.assertEqual(self.party.gold, 500)
+        self.assertEqual(self.campaign.current_day, starting_day)
+
 
 
 # ---------------------------------------------------------------------------
@@ -1618,16 +1637,58 @@ class ViewTests(TestCase):
 
     def test_campaign_delete_removes_campaign(self):
         campaign_id = self.campaign.pk
-        response = self.client.post(f"/campaign/{campaign_id}/delete/")
+        response = self.client.post(f"/campaign/{campaign_id}/delete/", {"confirm_delete": "yes"})
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Campaign.objects.filter(pk=campaign_id).exists())
+
+    def test_campaign_delete_requires_confirmation_checkbox(self):
+        campaign_id = self.campaign.pk
+        response = self.client.post(f"/campaign/{campaign_id}/delete/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Campaign.objects.filter(pk=campaign_id).exists())
 
     def test_campaign_detail_includes_delete_confirmation_prompt(self):
         response = self.client.get(f"/campaign/{self.campaign.pk}/")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Delete this campaign and all associated progress?")
+
+    def test_campaign_detail_includes_delete_confirmation_checkbox(self):
+        response = self.client.get(f"/campaign/{self.campaign.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "I understand this permanently deletes the campaign.")
+
+    def test_campaign_detail_includes_end_day_cta(self):
+        response = self.client.get(f"/campaign/{self.campaign.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "End Day and Review Aftermath")
+
+    def test_owned_campaign_is_hidden_from_other_non_staff_users(self):
+        user_model = get_user_model()
+        owner = user_model.objects.create(username=self.id() + "-owner", is_staff=False, is_active=True)
+        intruder = user_model.objects.create(username=self.id() + "-intruder", is_staff=False, is_active=True)
+        self.campaign.owner = owner
+        self.campaign.save(update_fields=["owner", "updated_at"])
+
+        self.client.force_login(intruder)
+        response = self.client.get(f"/campaign/{self.campaign.pk}/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_owner_can_access_owned_campaign(self):
+        user_model = get_user_model()
+        owner = user_model.objects.create(username=self.id() + "-owner-2", is_staff=False, is_active=True)
+        self.campaign.owner = owner
+        self.campaign.save(update_fields=["owner", "updated_at"])
+
+        self.client.force_login(owner)
+        response = self.client.get(f"/campaign/{self.campaign.pk}/")
+
+        self.assertEqual(response.status_code, 200)
 
     # --- Campaign detail ---
 
@@ -2215,3 +2276,28 @@ class CraftingViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(CraftingRecipeDef.objects.filter(code="test_recipe_unique").exists())
+
+
+class DatabaseAndContentLifecycleTests(TestCase):
+    def setUp(self):
+        call_command("seed_warhammer_content")
+
+    def test_steplog_indexes_exist(self):
+        constraints = connection.introspection.get_constraints(connection.cursor(), StepLog._meta.db_table)
+        index_columns = {tuple(value.get("columns", [])) for value in constraints.values() if value.get("index")}
+        self.assertIn(("campaign_id", "created_at"), index_columns)
+        self.assertIn(("campaign_id", "step_type", "action_type"), index_columns)
+
+    def test_content_pack_export_and_import_commands_roundtrip(self):
+        call_command(
+            "export_content_pack",
+            source="whq_roleplay_book",
+            name="WHQ Test Pack",
+            pack_version="1.0-test",
+        )
+
+        HazardDef.objects.filter(definition__source="whq_roleplay_book").delete()
+        self.assertEqual(HazardDef.objects.filter(definition__source="whq_roleplay_book").count(), 0)
+
+        call_command("import_content_pack", name="WHQ Test Pack", pack_version="1.0-test")
+        self.assertGreater(HazardDef.objects.filter(definition__source="whq_roleplay_book").count(), 0)

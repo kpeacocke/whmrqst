@@ -129,6 +129,114 @@ body {
     gap: var(--space-md);
 }
 
+.campaign-tabs {
+    margin-top: var(--space-md);
+}
+
+.side-rail-tabs {
+    display: none;
+}
+
+.side-tab-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.side-tab-panel {
+    margin-top: var(--space-md);
+}
+
+.tab-toggle {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.tab-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-bottom: var(--space-md);
+}
+
+.tab-label {
+    display: grid;
+    gap: 0.1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    background: rgba(255, 255, 255, 0.01);
+    cursor: pointer;
+}
+
+.tab-kicker {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tab-title {
+    font-family: "Fraunces", serif;
+    color: var(--text-primary);
+}
+
+.tab-panel {
+    display: none;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.02);
+    padding: var(--space-md);
+}
+
+.tab-summary {
+    margin: 0 0 var(--space-md);
+    color: var(--text-secondary);
+}
+
+.turn-flow-cta {
+    border: 1px solid rgba(182, 146, 78, 0.35);
+    background: linear-gradient(180deg, rgba(182, 146, 78, 0.12), rgba(182, 146, 78, 0.04));
+    border-radius: 10px;
+    padding: 0.75rem;
+    margin-bottom: var(--space-md);
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.btn-endday {
+    display: inline-block;
+    text-align: center;
+    min-width: 220px;
+}
+
+#tab-briefing:checked ~ .tab-list label[for="tab-briefing"],
+#tab-undertakings:checked ~ .tab-list label[for="tab-undertakings"],
+#tab-aftermath:checked ~ .tab-list label[for="tab-aftermath"] {
+    border-color: #8c7040;
+    background: linear-gradient(180deg, rgba(182, 146, 78, 0.22), rgba(182, 146, 78, 0.08));
+    box-shadow: inset 0 0 0 1px rgba(182, 146, 78, 0.35);
+}
+
+#tab-briefing:checked ~ .tab-panel[data-tab="briefing"],
+#tab-undertakings:checked ~ .tab-panel[data-tab="undertakings"],
+#tab-aftermath:checked ~ .tab-panel[data-tab="aftermath"] {
+    display: block;
+}
+
+#tab-roster:checked ~ .side-tab-list label[for="tab-roster"],
+#tab-chronicle:checked ~ .side-tab-list label[for="tab-chronicle"] {
+    border-color: #8c7040;
+    background: linear-gradient(180deg, rgba(182, 146, 78, 0.22), rgba(182, 146, 78, 0.08));
+    box-shadow: inset 0 0 0 1px rgba(182, 146, 78, 0.35);
+}
+
+#tab-roster:checked ~ .side-tab-panel[data-side-tab="roster"],
+#tab-chronicle:checked ~ .side-tab-panel[data-side-tab="chronicle"] {
+    display: block;
+}
+
 .card {
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -412,11 +520,37 @@ textarea {
         grid-template-columns: 1fr;
     }
 
+    .side-rail-tabs {
+        display: block;
+    }
+
+    .side-panel {
+        display: none;
+    }
+
     .main-panel {
         min-height: 0;
     }
 
     .action-grid {
         grid-template-columns: 1fr;
+    }
+
+    .tab-list {
+        grid-template-columns: 1fr;
+    }
+
+    .side-tab-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .turn-flow-cta {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-endday {
+        min-width: 0;
+        width: 100%;
     }
 }

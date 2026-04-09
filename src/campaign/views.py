@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 from django.views.decorators.http import require_http_methods
@@ -151,6 +152,7 @@ def _serialise_campaign(campaign: Campaign) -> dict[str, Any]:
         "campaign": {
             "name": campaign.name,
             "seed": campaign.seed,
+            "owner": campaign.owner.username if campaign.owner else None,
             "current_day": campaign.current_day,
             "current_week": campaign.current_week,
             "is_active": campaign.is_active,
@@ -436,12 +438,25 @@ def _import_campaign_payload(payload: dict[str, Any]) -> Campaign:
     return imported_campaign
 
 
+def _get_campaign_for_request(request: HttpRequest, campaign_id: int) -> Campaign:
+    if request.user.is_authenticated and request.user.is_staff:
+        return get_object_or_404(Campaign, id=campaign_id)
+
+    if request.user.is_authenticated:
+        return get_object_or_404(Campaign.objects.filter(id=campaign_id).filter(Q(owner=request.user) | Q(owner__isnull=True)))
+
+    return get_object_or_404(Campaign.objects.filter(id=campaign_id, owner__isnull=True))
+
+
 @require_http_methods(["GET", "POST"])
 def dashboard(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = CampaignCreateForm(request.POST)
         if form.is_valid():
-            campaign = form.save()
+            campaign = form.save(commit=False)
+            if request.user.is_authenticated:
+                campaign.owner = request.user
+            campaign.save()
             return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign.id)
     else:
         form = CampaignCreateForm()
@@ -477,7 +492,7 @@ def import_campaign(request: HttpRequest) -> HttpResponse:
 
 @require_http_methods(["GET", "POST"])
 def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
 
     party_form = PartyCreateForm(initial={"campaign": campaign_id})
@@ -525,7 +540,7 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
 @require_http_methods(["POST"])
 def rename_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     new_name = request.POST.get("name", "").strip()
     if not new_name:
         messages.warning(request, "Campaign name cannot be blank.")
@@ -539,7 +554,10 @@ def rename_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
 @require_http_methods(["POST"])
 def delete_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
+    if request.POST.get("confirm_delete") != "yes":
+        messages.warning(request, "Delete cancelled. Tick the confirmation box before deleting.")
+        return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
     deleted_name = campaign.name
     campaign.delete()
     messages.success(request, f"Deleted campaign: {deleted_name}.")
@@ -548,7 +566,7 @@ def delete_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
 @require_http_methods(["GET"])
 def export_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     payload = _serialise_campaign(campaign)
     response = JsonResponse(payload, json_dumps_params={"indent": 2})
     response["Content-Disposition"] = f'attachment; filename="campaign-{campaign.pk}.json"'
@@ -557,7 +575,7 @@ def export_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
 @require_http_methods(["POST"])
 def resolve_expedition_run(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404(NO_PARTY_MESSAGE)
@@ -577,7 +595,7 @@ def resolve_expedition_run(request: HttpRequest, campaign_id: int) -> HttpRespon
 
 @require_http_methods(["POST"])
 def resolve_travel(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404(NO_PARTY_MESSAGE)
@@ -593,7 +611,7 @@ def resolve_travel(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
 @require_http_methods(["POST"])
 def resolve_hero_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404(NO_PARTY_MESSAGE)
@@ -612,7 +630,7 @@ def resolve_hero_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
 @require_http_methods(["POST"])
 def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404(NO_PARTY_MESSAGE)
@@ -636,7 +654,7 @@ def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResp
 
 @require_http_methods(["POST"])
 def resolve_crafting_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
-    campaign = get_object_or_404(Campaign, id=campaign_id)
+    campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
     if not party:
         raise Http404(NO_PARTY_MESSAGE)

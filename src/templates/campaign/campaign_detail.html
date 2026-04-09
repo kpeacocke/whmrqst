@@ -4,6 +4,48 @@
 
 {% block content %}
 <div class="three-column">
+    <section class="panel side-rail-tabs" aria-label="Mobile side rail tabs">
+        <input type="radio" id="tab-roster" name="side-rail-tab" class="tab-toggle" checked>
+        <input type="radio" id="tab-chronicle" name="side-rail-tab" class="tab-toggle">
+
+        <nav class="tab-list side-tab-list" aria-label="Side rail tabs">
+            <label for="tab-roster" class="tab-label">
+                <span class="tab-kicker">Companions</span>
+                <span class="tab-title">Roster</span>
+            </label>
+            <label for="tab-chronicle" class="tab-label">
+                <span class="tab-kicker">Records</span>
+                <span class="tab-title">Chronicle</span>
+            </label>
+        </nav>
+
+        <section class="tab-panel side-tab-panel" data-side-tab="roster" aria-label="Roster tab">
+            <h2 class="heading-lg">Party</h2>
+            {% include "campaign/partials/party_panel.html" %}
+            <hr>
+            <h3 class="heading-md">Create Party</h3>
+            <form method="post" class="stacked-form">
+                {% csrf_token %}
+                <input type="hidden" name="create_type" value="party">
+                {{ party_form.as_p }}
+                <button type="submit" class="btn">Add Party</button>
+            </form>
+
+            <h3 class="heading-md">Create Hero</h3>
+            <form method="post" class="stacked-form">
+                {% csrf_token %}
+                <input type="hidden" name="create_type" value="hero">
+                {{ hero_form.as_p }}
+                <button type="submit" class="btn">Add Hero</button>
+            </form>
+        </section>
+
+        <section class="tab-panel side-tab-panel" data-side-tab="chronicle" aria-label="Chronicle tab">
+            <h2 class="heading-lg">Chronicle</h2>
+            {% include "campaign/partials/chronicle_panel.html" %}
+        </section>
+    </section>
+
     <aside class="panel side-panel" aria-label="Party and creation panel">
         <h2 class="heading-lg">Party</h2>
         {% include "campaign/partials/party_panel.html" %}
@@ -29,89 +71,127 @@
         <h1 class="heading-xl">{{ campaign.name }}</h1>
         <p class="lede">Week {{ campaign.current_week }} · Day {{ campaign.current_day }} · Seed {{ campaign.seed }}</p>
 
-        <div class="action-grid">
-            <article class="card">
-                <h3 class="heading-md">Rename Campaign</h3>
-                <form method="post" action="{% url 'campaign:rename_campaign' campaign_id=campaign.id %}" class="stacked-form">
-                    {% csrf_token %}
-                    <label for="campaign_name">Name</label>
-                    <input id="campaign_name" name="name" type="text" value="{{ campaign.name }}" maxlength="120" required>
-                    <button type="submit" class="btn">Rename</button>
-                </form>
-            </article>
+        <section class="campaign-tabs" aria-label="Campaign phases">
+            <input type="radio" id="tab-briefing" name="campaign-tab" class="tab-toggle" checked>
+            <input type="radio" id="tab-undertakings" name="campaign-tab" class="tab-toggle">
+            <input type="radio" id="tab-aftermath" name="campaign-tab" class="tab-toggle">
 
-            <article class="card">
-                <h3 class="heading-md">Export Campaign</h3>
-                <p class="small-note">Download JSON snapshot of campaign state.</p>
-                <a class="btn" href="{% url 'campaign:export_campaign' campaign_id=campaign.id %}">Export JSON</a>
-            </article>
+            <nav class="tab-list" aria-label="Campaign phase tabs">
+                <label for="tab-briefing" class="tab-label">
+                    <span class="tab-kicker">Phase I</span>
+                    <span class="tab-title">Briefing</span>
+                </label>
+                <label for="tab-undertakings" class="tab-label">
+                    <span class="tab-kicker">Phase II</span>
+                    <span class="tab-title">Undertakings</span>
+                </label>
+                <label for="tab-aftermath" class="tab-label">
+                    <span class="tab-kicker">Phase III</span>
+                    <span class="tab-title">Aftermath</span>
+                </label>
+            </nav>
 
-            <article class="card">
-                <h3 class="heading-md">Delete Campaign</h3>
-                <form method="post" action="{% url 'campaign:delete_campaign' campaign_id=campaign.id %}" class="stacked-form" onsubmit="return confirm('Delete this campaign and all associated progress? This cannot be undone.');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn">Delete Campaign</button>
-                </form>
-            </article>
-        </div>
+            <section class="tab-panel" data-tab="briefing" aria-label="Briefing phase">
+                <p class="tab-summary">Set campaign intent, review options, and lock in the day plan.</p>
+                <div class="action-grid">
+                    <article class="card">
+                        <h3 class="heading-md">Rename Campaign</h3>
+                        <form method="post" action="{% url 'campaign:rename_campaign' campaign_id=campaign.id %}" class="stacked-form">
+                            {% csrf_token %}
+                            <label for="campaign_name">Name</label>
+                            <input id="campaign_name" name="name" type="text" value="{{ campaign.name }}" maxlength="120" required>
+                            <button type="submit" class="btn">Rename</button>
+                        </form>
+                    </article>
 
-        {% include "campaign/partials/choice_list.html" %}
+                    <article class="card">
+                        <h3 class="heading-md">Export Campaign</h3>
+                        <p class="small-note">Download JSON snapshot of campaign state.</p>
+                        <a class="btn" href="{% url 'campaign:export_campaign' campaign_id=campaign.id %}">Export JSON</a>
+                    </article>
 
-        <div class="action-grid">
-            <article class="card" id="action-expedition">
-                <h3 class="heading-md">Expedition</h3>
-                <form method="post" action="{% url 'campaign:resolve_expedition_run' campaign_id=campaign.id %}" class="stacked-form">
-                    {% csrf_token %}
-                    {{ expedition_form.as_p }}
-                    <button type="submit" class="btn btn-primary">Run Expedition</button>
-                </form>
-                {% if latest_expedition %}
-                <p class="small-note">
-                    Last: {{ latest_expedition.expedition_def.name }} · {{ latest_expedition.get_risk_level_display }}
-                </p>
-                {% endif %}
-            </article>
+                    <article class="card">
+                        <h3 class="heading-md">Delete Campaign</h3>
+                        <form method="post" action="{% url 'campaign:delete_campaign' campaign_id=campaign.id %}" class="stacked-form" onsubmit="return confirm('Delete this campaign and all associated progress? This cannot be undone.');">
+                            {% csrf_token %}
+                            <label for="confirm_delete_{{ campaign.id }}">
+                                <input id="confirm_delete_{{ campaign.id }}" type="checkbox" name="confirm_delete" value="yes" required>
+                                I understand this permanently deletes the campaign.
+                            </label>
+                            <button type="submit" class="btn">Delete Campaign</button>
+                        </form>
+                    </article>
+                </div>
 
-            <article class="card" id="action-travel">
-                <h3 class="heading-md">Travel Hazards</h3>
-                <form method="post" action="{% url 'campaign:resolve_travel' campaign_id=campaign.id %}" class="stacked-form">
-                    {% csrf_token %}
-                    {{ travel_form.as_p }}
-                    <button type="submit" class="btn btn-primary">Resolve Travel</button>
-                </form>
-            </article>
+                {% include "campaign/partials/choice_list.html" %}
+            </section>
 
-            <article class="card" id="action-settlement">
-                <h3 class="heading-md">Settlement Action</h3>
-                <form method="post" action="{% url 'campaign:resolve_hero_action' campaign_id=campaign.id %}" class="stacked-form">
-                    {% csrf_token %}
-                    {{ hero_action_form.as_p }}
-                    <button type="submit" class="btn btn-primary">Resolve Action</button>
-                </form>
-            </article>
+            <section class="tab-panel" data-tab="undertakings" aria-label="Undertakings phase">
+                <p class="tab-summary">Execute the turn: travel, settlement decisions, trade, craft, and expeditions.</p>
+                <div class="turn-flow-cta">
+                    <p class="small-note">When your actions are complete, move to review outcomes and consequences.</p>
+                    <label for="tab-aftermath" class="btn btn-primary btn-endday">End Day and Review Aftermath</label>
+                </div>
+                <div class="action-grid">
+                    <article class="card" id="action-expedition">
+                        <h3 class="heading-md">Expedition</h3>
+                        <form method="post" action="{% url 'campaign:resolve_expedition_run' campaign_id=campaign.id %}" class="stacked-form">
+                            {% csrf_token %}
+                            {{ expedition_form.as_p }}
+                            <button type="submit" class="btn btn-primary">Run Expedition</button>
+                        </form>
+                        {% if latest_expedition %}
+                        <p class="small-note">
+                            Last: {{ latest_expedition.expedition_def.name }} · {{ latest_expedition.get_risk_level_display }}
+                        </p>
+                        {% endif %}
+                    </article>
 
-            <article class="card" id="action-shop">
-                <h3 class="heading-md">Settlement Shop</h3>
-                <form method="post" action="{% url 'campaign:resolve_shop_transaction' campaign_id=campaign.id %}" class="stacked-form">
-                    {% csrf_token %}
-                    {{ shop_form.as_p }}
-                    <button type="submit" class="btn btn-primary">Apply Transaction</button>
-                </form>
-            </article>
+                    <article class="card" id="action-travel">
+                        <h3 class="heading-md">Travel Hazards</h3>
+                        <form method="post" action="{% url 'campaign:resolve_travel' campaign_id=campaign.id %}" class="stacked-form">
+                            {% csrf_token %}
+                            {{ travel_form.as_p }}
+                            <button type="submit" class="btn btn-primary">Resolve Travel</button>
+                        </form>
+                    </article>
 
-            <article class="card" id="action-crafting">
-                <h3 class="heading-md">Crafting</h3>
-                <form method="post" action="{% url 'campaign:resolve_crafting_action' campaign_id=campaign.id %}" class="stacked-form">
-                    {% csrf_token %}
-                    {{ crafting_form.as_p }}
-                    <button type="submit" class="btn btn-primary">Craft Item</button>
-                </form>
-            </article>
-        </div>
+                    <article class="card" id="action-settlement">
+                        <h3 class="heading-md">Settlement Action</h3>
+                        <form method="post" action="{% url 'campaign:resolve_hero_action' campaign_id=campaign.id %}" class="stacked-form">
+                            {% csrf_token %}
+                            {{ hero_action_form.as_p }}
+                            <button type="submit" class="btn btn-primary">Resolve Action</button>
+                        </form>
+                    </article>
 
-        {% include "campaign/partials/event_card.html" %}
-        {% include "campaign/partials/settlement_shell.html" %}
-        {% include "campaign/partials/expedition_report_shell.html" %}
+                    <article class="card" id="action-shop">
+                        <h3 class="heading-md">Settlement Shop</h3>
+                        <form method="post" action="{% url 'campaign:resolve_shop_transaction' campaign_id=campaign.id %}" class="stacked-form">
+                            {% csrf_token %}
+                            {{ shop_form.as_p }}
+                            <button type="submit" class="btn btn-primary">Apply Transaction</button>
+                        </form>
+                    </article>
+
+                    <article class="card" id="action-crafting">
+                        <h3 class="heading-md">Crafting</h3>
+                        <form method="post" action="{% url 'campaign:resolve_crafting_action' campaign_id=campaign.id %}" class="stacked-form">
+                            {% csrf_token %}
+                            {{ crafting_form.as_p }}
+                            <button type="submit" class="btn btn-primary">Craft Item</button>
+                        </form>
+                    </article>
+                </div>
+            </section>
+
+            <section class="tab-panel" data-tab="aftermath" aria-label="Aftermath phase">
+                <p class="tab-summary">Review consequences, event outcomes, and expedition reports before the next day.</p>
+                {% include "campaign/partials/event_card.html" %}
+                {% include "campaign/partials/settlement_shell.html" %}
+                {% include "campaign/partials/expedition_report_shell.html" %}
+            </section>
+        </section>
     </section>
 
     <aside class="panel side-panel" aria-label="Chronicle panel">

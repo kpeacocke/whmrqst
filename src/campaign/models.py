@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -12,6 +13,13 @@ class TimeStampedModel(models.Model):
 class Campaign(TimeStampedModel):
     name = models.CharField(max_length=120)
     seed = models.CharField(max_length=120, unique=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_campaigns",
+    )
     current_day = models.PositiveIntegerField(default=1)
     current_week = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True)
@@ -239,8 +247,11 @@ class StepLog(models.Model):
     class Meta:
         ordering = ["created_at", "id"]
         indexes = [
-            models.Index(fields=["campaign", "created_at"]),
-            models.Index(fields=["campaign", "step_type", "action_type"]),
+            models.Index(fields=["campaign", "created_at"], name="step_camp_created_idx"),
+            models.Index(
+                fields=["campaign", "step_type", "action_type"],
+                name="step_camp_type_action_idx",
+            ),
         ]
 
     def __str__(self):
