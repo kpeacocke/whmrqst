@@ -16,5 +16,5 @@ pymongo==4.15.5
 pytest==9.0.2
 pytest-django==4.11.1
 sqlparse==0.5.3
-Werkzeug==3.1.4
+Werkzeug==3.1.8
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
