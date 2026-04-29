@@ -1,0 +1,24 @@
+<section class="card expedition-report-shell reveal-sequence">
+    <h2 class="heading-lg reveal-item" data-reveal-order="1">Expedition Report</h2>
+    {% if latest_expedition %}
+    <p class="reveal-item" data-reveal-order="2">
+        Last run: {{ latest_expedition.expedition_def.name }} · {{ latest_expedition.get_risk_level_display }}
+    </p>
+    <ul class="record-list reveal-item" data-reveal-order="4">
+        <li>
+            <strong>Outcome</strong>
+            <span>{{ latest_expedition.result.narrative|default:"No summary captured." }}</span>
+        </li>
+        <li>
+            <strong>Success</strong>
+            <span>{{ latest_expedition.result.success|yesno:"Yes,No"|default:"Unknown" }}</span>
+        </li>
+        <li>
+            <strong>Loot</strong>
+            <span>{{ latest_expedition.result.loot|default:"[]" }}</span>
+        </li>
+    </ul>
+    {% else %}
+    <p class="reveal-item" data-reveal-order="2">No expedition report yet. Run an expedition to generate a report card.</p>
+    {% endif %}
+</section>

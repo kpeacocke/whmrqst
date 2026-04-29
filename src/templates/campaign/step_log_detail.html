@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Step Log {{ step.id }} · Quest Between{% endblock %}
+
+{% block content %}
+<section class="panel panel-elevated">
+    <h1 class="heading-xl">Step {{ step.id }}</h1>
+    <p class="lede">{{ step.step_type|title }} · {{ step.action_type|title }}</p>
+    <div class="stacked-form">
+        <p><strong>Narrative:</strong> {{ step.narrative }}</p>
+        <p><strong>Seed:</strong> {{ step.rng_seed }}</p>
+        <p><strong>Dice:</strong> {{ step.dice_rolled }}</p>
+        <p><strong>Effects:</strong> {{ step.effects_applied }}</p>
+        <p><strong>Time:</strong> {{ step.created_at }}</p>
+    </div>
+</section>
+{% endblock %}

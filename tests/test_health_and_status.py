@@ -1,4 +1,3 @@
-import pytest
 
 # Mock Character class for health and status mechanics
 class Character:

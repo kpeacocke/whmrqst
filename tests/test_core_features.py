@@ -1,4 +1,3 @@
-import pytest
 
 # Mock Item class for inventory management
 class Item:

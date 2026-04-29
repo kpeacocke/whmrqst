@@ -1,4 +1,3 @@
-import pytest
 
 # Mock classes for UI and System Polish
 

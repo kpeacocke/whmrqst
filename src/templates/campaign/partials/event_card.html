@@ -1,0 +1,13 @@
+<article class="card event-card reveal-sequence">
+    <h2 class="heading-lg reveal-item" data-reveal-order="1">Main Event</h2>
+    <p class="event-narrative reveal-item" data-reveal-order="2">Resolve travel hazards, settlement actions, and crafting to generate the chronicle below.</p>
+    <div class="impact-list reveal-item" data-reveal-order="3">
+        {% if recent_steps %}
+            {% for step in recent_steps|slice:":5" %}
+                {% include "campaign/partials/impact_pill.html" with step=step %}
+            {% endfor %}
+        {% else %}
+            <span class="impact-pill neutral">No impacts yet.</span>
+        {% endif %}
+    </div>
+</article>

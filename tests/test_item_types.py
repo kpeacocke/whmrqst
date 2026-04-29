@@ -1,4 +1,3 @@
-import pytest
 
 # Mock base Item class and subclasses for testing item types
 class Item:

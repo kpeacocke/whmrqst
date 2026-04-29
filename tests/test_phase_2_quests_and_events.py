@@ -1,4 +1,3 @@
-import pytest
 
 # Mock classes for Quests and Events
 

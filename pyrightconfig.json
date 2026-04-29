@@ -1,0 +1,13 @@
+{
+  "typeCheckingMode": "basic",
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "src/campaign/migrations",
+    "src/game"
+  ]
+}

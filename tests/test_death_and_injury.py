@@ -1,4 +1,3 @@
-import pytest
 
 # Mock Character class for death and injury mechanics
 class Character:

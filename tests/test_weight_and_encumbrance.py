@@ -1,4 +1,3 @@
-import pytest
 
 # Mock classes for Player, Item, and Encumbrance
 
@@ -67,7 +66,7 @@ def test_remove_item_weight_update():
 
     player.add_item(item1)
     player.add_item(item2)
-    
+
     player.remove_item(item1)
     assert player.total_weight == 15, "Player's total weight should be updated to 15 after removing the sword."
 
@@ -78,7 +77,7 @@ def test_encumbrance_penalty():
     item2 = Item(name="Greatsword", weight=30)
 
     player.add_item(item1)
-    assert player.is_encumbered() == False, "Player should not be encumbered after adding only the armor."
+    assert not player.is_encumbered(), "Player should not be encumbered after adding only the armor."
 
     player.add_item(item2)
     assert player.is_encumbered(), "Player should be encumbered after adding the greatsword."
@@ -120,6 +119,6 @@ def test_encumbrance_boundary():
     # Add a small item to exceed capacity
     small_item = Item(name="Ring", weight=1)
     player.add_item(small_item)
-    
+
     assert player.total_weight == 76, "Player's total weight should be 76 after adding the ring."
     assert player.is_encumbered(), "Player should be encumbered after exceeding the carrying capacity."

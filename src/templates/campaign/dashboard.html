@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Campaign Dashboard · Quest Between{% endblock %}
+
+{% block content %}
+<section class="panel panel-elevated">
+    <h1 class="heading-xl">Campaign Ledger</h1>
+    <p class="lede">Create a campaign seed to begin deterministic travel, events, and settlement play.</p>
+
+    <form method="post" class="stacked-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Create Campaign</button>
+    </form>
+
+    <h2 class="heading-md">Import Campaign</h2>
+    <form method="post" action="{% url 'campaign:import_campaign' %}" class="stacked-form">
+        {% csrf_token %}
+        <label for="import_payload">Campaign JSON</label>
+        <textarea id="import_payload" name="payload" rows="8" placeholder='{"campaign": {"name": "Imported"}}'></textarea>
+        <button type="submit" class="btn">Import Campaign</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2 class="heading-lg">Existing Campaigns</h2>
+    <ul class="record-list campaign-list">
+        {% for campaign in campaigns %}
+        <li>
+            <a href="{% url 'campaign:campaign_detail' campaign_id=campaign.id %}">{{ campaign.name }}</a>
+            <span class="small-note">Seed: {{ campaign.seed }}</span>
+            <span class="small-note">Week {{ campaign.current_week }}, Day {{ campaign.current_day }}</span>
+        </li>
+        {% empty %}
+        <li>No campaigns yet.</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}
