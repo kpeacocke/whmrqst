@@ -9,6 +9,7 @@ name: CI - Test and SonarCloud
 
 jobs:
   test_and_sonarcloud:
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -39,6 +40,7 @@ jobs:
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
 
     - name: SonarCloud Scan
+      if: ${{ secrets.SONAR_TOKEN != '' && secrets.SONAR_PROJECT_KEY != '' && secrets.SONAR_ORGANIZATION != '' }}
       uses: sonarsource/sonarcloud-github-action@v3.0.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -48,3 +50,7 @@ jobs:
           -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
           -Dsonar.host.url=https://sonarcloud.io
           -Dsonar.python.coverage.reportPaths=coverage.xml
+
+    - name: Skip SonarCloud when secrets are unavailable
+      if: ${{ secrets.SONAR_TOKEN == '' || secrets.SONAR_PROJECT_KEY == '' || secrets.SONAR_ORGANIZATION == '' }}
+      run: echo "SonarCloud secrets are unavailable for this context. Skipping SonarCloud scan."

@@ -27,17 +27,23 @@ jobs:
       - name: Install Snyk CLI
         run: npm install -g snyk
 
+      - name: Skip when Snyk token is unavailable
+        if: ${{ secrets.SNYK_TOKEN == '' }}
+        run: echo "SNYK_TOKEN is not configured for this context. Skipping Snyk scan."
       - name: Authenticate Snyk
+        if: ${{ secrets.SNYK_TOKEN != '' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk auth "$SNYK_TOKEN"
 
       - name: Dependency scan (pip requirements)
+        if: ${{ secrets.SNYK_TOKEN != '' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk test --file=requirements.txt --package-manager=pip --severity-threshold=high
 
       - name: Code scan
+        if: ${{ secrets.SNYK_TOKEN != '' }}
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk code test --severity-threshold=high
