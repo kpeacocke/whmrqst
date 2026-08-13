@@ -58,8 +58,9 @@ jobs:
       - name: Enforce PR titles (Pull Request Event)
         if: ${{ github.event_name == 'pull_request' }}
         run: |
-          if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
-            echo "Skipping PR title check for Dependabot."
+          PR_BRANCH="${{ github.head_ref }}"
+          if [[ "$PR_BRANCH" =~ ^(dependabot|renovate)/ ]]; then
+            echo "Skipping PR title check for dependency bot branch '$PR_BRANCH'."
             exit 0
           fi
 
