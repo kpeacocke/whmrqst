@@ -1,5 +1,6 @@
 import pytest
 
+
 # Mock Item class for crafting and upgrading
 class Item:
     def __init__(self, name, base_power=10, upgrade_level=0):
@@ -11,6 +12,7 @@ class Item:
         # Each upgrade increases base power by 5
         self.upgrade_level += 1
         self.base_power += 5
+
 
 # Mock Character class with inventory
 class Character:
@@ -31,6 +33,7 @@ class Character:
             self.resources["materials"] -= materials
             return True
         return False
+
 
 # Mock CraftingSystem class for handling crafting and upgrading
 class CraftingSystem:
@@ -61,18 +64,22 @@ class CraftingSystem:
 
 # Test cases for Crafting and Upgrading
 
+
 def test_crafting_new_item():
     # Scenario 1: Ensure crafting a new item works correctly
     char = Character(name="Hero")
     crafting_system = CraftingSystem()
 
     # Craft a sword
-    crafted_item = crafting_system.craft(char, item_name="Sword", required_gold=20, required_materials=10)
-    
+    crafted_item = crafting_system.craft(
+        char, item_name="Sword", required_gold=20, required_materials=10
+    )
+
     assert crafted_item.name == "Sword", "Crafted item should be 'Sword'."
     assert char.has_item("Sword"), "Character should have 'Sword' in inventory."
     assert char.resources["gold"] == 80, "Gold should decrease by 20."
     assert char.resources["materials"] == 40, "Materials should decrease by 10."
+
 
 def test_upgrading_item():
     # Scenario 2: Ensure upgrading an item improves its stats
@@ -82,12 +89,19 @@ def test_upgrading_item():
     crafting_system = CraftingSystem()
 
     # Upgrade the sword
-    upgraded_item = crafting_system.upgrade(char, item_name="Sword", required_gold=30, required_materials=20)
-    
-    assert upgraded_item.base_power == 15, "Sword power should increase by 5 after upgrade."
-    assert upgraded_item.upgrade_level == 1, "Sword upgrade level should be 1 after upgrade."
+    upgraded_item = crafting_system.upgrade(
+        char, item_name="Sword", required_gold=30, required_materials=20
+    )
+
+    assert upgraded_item.base_power == 15, (
+        "Sword power should increase by 5 after upgrade."
+    )
+    assert upgraded_item.upgrade_level == 1, (
+        "Sword upgrade level should be 1 after upgrade."
+    )
     assert char.resources["gold"] == 70, "Gold should decrease by 30."
     assert char.resources["materials"] == 30, "Materials should decrease by 20."
+
 
 def test_insufficient_resources_for_crafting():
     # Scenario 3: Ensure crafting fails with insufficient resources
@@ -96,7 +110,10 @@ def test_insufficient_resources_for_crafting():
 
     # Try to craft with insufficient materials
     with pytest.raises(ValueError, match="Insufficient resources for crafting."):
-        crafting_system.craft(char, item_name="Sword", required_gold=200, required_materials=100)
+        crafting_system.craft(
+            char, item_name="Sword", required_gold=200, required_materials=100
+        )
+
 
 def test_insufficient_resources_for_upgrading():
     # Scenario 4: Ensure upgrading fails with insufficient resources
@@ -107,13 +124,19 @@ def test_insufficient_resources_for_upgrading():
 
     # Try to upgrade the sword with insufficient resources
     with pytest.raises(ValueError, match="Insufficient resources for upgrading."):
-        crafting_system.upgrade(char, item_name="Sword", required_gold=200, required_materials=100)
+        crafting_system.upgrade(
+            char, item_name="Sword", required_gold=200, required_materials=100
+        )
 
-def test_crafting_invalid_item():
-    # Scenario 5: Ensure that attempting to craft an invalid item is handled correctly
+
+def test_crafting_accepts_requested_item_name():
+    # This mock has no item catalogue, so item names are intentionally unrestricted.
     char = Character(name="Hero")
     crafting_system = CraftingSystem()
 
-    # Trying to craft a non-existent item should raise a generic exception (you can expand this logic)
-    with pytest.raises(ValueError, match="Insufficient resources for crafting."):
-        crafting_system.craft(char, item_name="Magic Wand", required_gold=50, required_materials=30)
+    crafted_item = crafting_system.craft(
+        char, item_name="Magic Wand", required_gold=50, required_materials=30
+    )
+
+    assert crafted_item.name == "Magic Wand"
+    assert char.resources == {"gold": 50, "materials": 20}

@@ -3,7 +3,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("campaign", "0007_steplog_indexes"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

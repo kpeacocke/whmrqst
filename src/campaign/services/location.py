@@ -58,7 +58,9 @@ def _get_larger_settlement_locations(
 ) -> list[SettlementLocationDef]:
     always = list(SettlementLocationDef.objects.filter(always_available=True))
     find_target_field = f"{settlement_size}_find_target"
-    candidates = SettlementLocationDef.objects.filter(**{f"{find_target_field}__isnull": False})
+    candidates = SettlementLocationDef.objects.filter(
+        **{f"{find_target_field}__isnull": False}
+    )
     found = always.copy()
     found_ids = {location.pk for location in found}
 
@@ -82,13 +84,15 @@ def _location_is_found(
     d6a = rng.d6()
     d6b = rng.d6()
     roll_total = d6a + d6b
-    dice_rolled.append({
-        "die": "2d6",
-        "result": roll_total,
-        "min_needed": target,
-        "location": location.code,
-        "context": "location-find",
-    })
+    dice_rolled.append(
+        {
+            "die": "2d6",
+            "result": roll_total,
+            "min_needed": target,
+            "location": location.code,
+            "context": "location-find",
+        }
+    )
     return roll_total >= target
 
 
@@ -158,7 +162,9 @@ def _apply_alehouse_effects(
         effects["party_gold_delta"] -= cost
     party.morale += 1
     effects["party_morale_delta"] += 1
-    effects["narrative"] = f"{hero.name} spends a restful evening at the {location.name}. Morale improves."
+    effects["narrative"] = (
+        f"{hero.name} spends a restful evening at the {location.name}. Morale improves."
+    )
     party.save(update_fields=["gold", "morale", "updated_at"])
 
 
@@ -173,13 +179,17 @@ def _apply_temple_effects(
     del rng, dice_rolled
     if party.gold < 50:
         effects["rejected"] = "insufficient_gold"
-        effects["narrative"] = f"{hero.name} cannot afford the 50 gold donation at the {location.name}."
+        effects["narrative"] = (
+            f"{hero.name} cannot afford the 50 gold donation at the {location.name}."
+        )
         return
 
     party.gold -= 50
     effects["party_gold_delta"] -= 50
     hero.temple_reroll_charges += 1
-    effects["narrative"] = f"{hero.name} donates to the temple and receives a divine blessing."
+    effects["narrative"] = (
+        f"{hero.name} donates to the temple and receives a divine blessing."
+    )
     party.save(update_fields=["gold", "updated_at"])
     hero.save(update_fields=["temple_reroll_charges", "updated_at"])
 
@@ -203,14 +213,18 @@ def _apply_gambling_house_effects(
     if roll <= 3:
         party.gold -= wager
         effects["party_gold_delta"] -= wager
-        effects["narrative"] = f"{hero.name} loses the wager of {wager} gold at the {location.name}."
+        effects["narrative"] = (
+            f"{hero.name} loses the wager of {wager} gold at the {location.name}."
+        )
     elif roll == 4:
         effects["narrative"] = f"{hero.name} breaks even at the {location.name}."
     else:
         winnings = wager
         party.gold += winnings
         effects["party_gold_delta"] += winnings
-        effects["narrative"] = f"{hero.name} wins {winnings} gold at the {location.name}."
+        effects["narrative"] = (
+            f"{hero.name} wins {winnings} gold at the {location.name}."
+        )
     party.save(update_fields=["gold", "updated_at"])
 
 
@@ -223,7 +237,9 @@ def _apply_alchemist_effects(
     dice_rolled: list[dict[str, Any]],
 ) -> None:
     del party, rng, dice_rolled
-    effects["narrative"] = f"{hero.name} visits the Alchemist's Laboratory but has nothing to transmute."
+    effects["narrative"] = (
+        f"{hero.name} visits {location.name} but has nothing to transmute."
+    )
 
 
 def _apply_skill_location_effects(
@@ -239,7 +255,9 @@ def _apply_skill_location_effects(
         return
 
     effects["skill_learned"] = skill.skill_def.name
-    effects["narrative"] = f"{hero.name} learns {skill.skill_def.name} at the {location.name}."
+    effects["narrative"] = (
+        f"{hero.name} learns {skill.skill_def.name} at the {location.name}."
+    )
 
 
 LOCATION_EFFECT_HANDLERS = {
@@ -255,10 +273,17 @@ def _grant_next_archetype_skill(
     location: SettlementLocationDef,
 ) -> HeroSkill | None:
     """Grant the next unlearned archetype skill to the hero. Returns the new HeroSkill or None."""
-    already_learned = set(HeroSkill.objects.filter(hero=hero).values_list("skill_def_id", flat=True))
-    available = SkillDef.objects.filter(
-        archetype=hero.archetype,
-    ).exclude(id__in=already_learned).order_by("name").first()
+    already_learned = set(
+        HeroSkill.objects.filter(hero=hero).values_list("skill_def_id", flat=True)
+    )
+    available = (
+        SkillDef.objects.filter(
+            archetype=hero.archetype,
+        )
+        .exclude(id__in=already_learned)
+        .order_by("name")
+        .first()
+    )
 
     if not available:
         return None

@@ -59,7 +59,12 @@ GM_FORM_CONFIG = (
     ("settlement", "settlement_event_form", SettlementEventDefForm, "settlement"),
     ("catastrophic", "catastrophic_form", CatastrophicEventDefForm, "catastrophic"),
     ("location", "location_form", SettlementLocationDefForm, "location"),
-    ("crafting_recipe", "crafting_recipe_form", CraftingRecipeDefForm, "crafting_recipe"),
+    (
+        "crafting_recipe",
+        "crafting_recipe_form",
+        CraftingRecipeDefForm,
+        "crafting_recipe",
+    ),
 )
 
 
@@ -74,11 +79,15 @@ def _build_gm_console_forms(post_data: Any | None = None) -> dict[str, Any]:
     return forms
 
 
-def _handle_gm_console_post(post_data: Any) -> tuple[dict[str, Any], HttpResponse | None]:
+def _handle_gm_console_post(
+    post_data: Any,
+) -> tuple[dict[str, Any], HttpResponse | None]:
     forms = _build_gm_console_forms(post_data)
     form_kind = post_data.get("form_kind")
 
-    for expected_kind, context_key, _form_class, _prefix in GM_FORM_CONFIG:
+    for form_config in GM_FORM_CONFIG:
+        expected_kind = form_config[0]
+        context_key = form_config[1]
         if form_kind != expected_kind:
             continue
 
@@ -103,20 +112,34 @@ def _get_gm_console_content(
 
     if source_filter:
         hazard_queryset = hazard_queryset.filter(definition__source=source_filter)
-        settlement_queryset = settlement_queryset.filter(definition__source=source_filter)
-        catastrophic_queryset = catastrophic_queryset.filter(definition__source=source_filter)
+        settlement_queryset = settlement_queryset.filter(
+            definition__source=source_filter
+        )
+        catastrophic_queryset = catastrophic_queryset.filter(
+            definition__source=source_filter
+        )
 
     if hazard_roll_filter:
-        hazard_queryset = hazard_queryset.filter(definition__table_roll__icontains=hazard_roll_filter)
+        hazard_queryset = hazard_queryset.filter(
+            definition__table_roll__icontains=hazard_roll_filter
+        )
     if settlement_roll_filter:
-        settlement_queryset = settlement_queryset.filter(definition__table_roll__icontains=settlement_roll_filter)
+        settlement_queryset = settlement_queryset.filter(
+            definition__table_roll__icontains=settlement_roll_filter
+        )
     if catastrophic_roll_filter:
-        catastrophic_queryset = catastrophic_queryset.filter(definition__table_roll__icontains=catastrophic_roll_filter)
+        catastrophic_queryset = catastrophic_queryset.filter(
+            definition__table_roll__icontains=catastrophic_roll_filter
+        )
 
     return {
         "hazards": sorted(
             hazard_queryset,
-            key=lambda item: (item.definition.get("table_roll", ""), item.settlement_size, item.name),
+            key=lambda item: (
+                item.definition.get("table_roll", ""),
+                item.settlement_size,
+                item.name,
+            ),
         ),
         "settlement_events": sorted(
             settlement_queryset,
@@ -144,8 +167,14 @@ def _serialise_campaign(campaign: Campaign) -> dict[str, Any]:
         .select_related("hero", "skill_def")
         .order_by("id")
     )
-    expeditions = list(Expedition.objects.filter(campaign=campaign).select_related("party", "expedition_def").order_by("id"))
-    step_logs = list(StepLog.objects.filter(campaign=campaign).order_by("created_at", "id"))
+    expeditions = list(
+        Expedition.objects.filter(campaign=campaign)
+        .select_related("party", "expedition_def")
+        .order_by("id")
+    )
+    step_logs = list(
+        StepLog.objects.filter(campaign=campaign).order_by("created_at", "id")
+    )
 
     return {
         "version": 1,
@@ -261,7 +290,9 @@ def _import_campaign_day(value: Any, fallback: int) -> int:
     return max(1, parsed)
 
 
-def _import_parties(payload: dict[str, Any], imported_campaign: Campaign) -> dict[int, Party]:
+def _import_parties(
+    payload: dict[str, Any], imported_campaign: Campaign
+) -> dict[int, Party]:
     party_map: dict[int, Party] = {}
     for party_data in payload.get("parties", []):
         legacy_party_id = _parse_int(party_data.get("legacy_id"))
@@ -273,7 +304,10 @@ def _import_parties(payload: dict[str, Any], imported_campaign: Campaign) -> dic
             gold=_parse_int(party_data.get("gold", 0)) or 0,
             supplies=_parse_int(party_data.get("supplies", 0)) or 0,
             morale=_parse_int(party_data.get("morale", 0)) or 0,
-            hardship_price_multiplier=_parse_int(party_data.get("hardship_price_multiplier", 1)) or 1,
+            hardship_price_multiplier=_parse_int(
+                party_data.get("hardship_price_multiplier", 1)
+            )
+            or 1,
             forced_departure=bool(party_data.get("forced_departure", False)),
             disease_risk_active=bool(party_data.get("disease_risk_active", False)),
         )
@@ -281,7 +315,9 @@ def _import_parties(payload: dict[str, Any], imported_campaign: Campaign) -> dic
     return party_map
 
 
-def _import_heroes(payload: dict[str, Any], party_map: dict[int, Party]) -> dict[int, Hero]:
+def _import_heroes(
+    payload: dict[str, Any], party_map: dict[int, Party]
+) -> dict[int, Hero]:
     hero_map: dict[int, Hero] = {}
     for hero_data in payload.get("heroes", []):
         legacy_party_id = _parse_int(hero_data.get("party_legacy_id"))
@@ -307,14 +343,17 @@ def _import_heroes(payload: dict[str, Any], party_map: dict[int, Party]) -> dict
             in_disguise=bool(hero_data.get("in_disguise", False)),
             has_pet_dog=bool(hero_data.get("has_pet_dog", False)),
             investment_active=bool(hero_data.get("investment_active", False)),
-            temple_reroll_charges=_parse_int(hero_data.get("temple_reroll_charges", 0)) or 0,
+            temple_reroll_charges=_parse_int(hero_data.get("temple_reroll_charges", 0))
+            or 0,
             alive=bool(hero_data.get("alive", True)),
         )
         hero_map[legacy_hero_id] = hero
     return hero_map
 
 
-def _import_inventory_items(payload: dict[str, Any], party_map: dict[int, Party], hero_map: dict[int, Hero]) -> None:
+def _import_inventory_items(
+    payload: dict[str, Any], party_map: dict[int, Party], hero_map: dict[int, Hero]
+) -> None:
     for inventory_data in payload.get("inventory_items", []):
         legacy_party_id = _parse_int(inventory_data.get("party_legacy_id"))
         if legacy_party_id is None:
@@ -323,7 +362,9 @@ def _import_inventory_items(payload: dict[str, Any], party_map: dict[int, Party]
         if party is None:
             continue
         hero_legacy_id = inventory_data.get("hero_legacy_id")
-        parsed_hero_id = _parse_int(hero_legacy_id) if hero_legacy_id is not None else None
+        parsed_hero_id = (
+            _parse_int(hero_legacy_id) if hero_legacy_id is not None else None
+        )
         if hero_legacy_id is not None and parsed_hero_id is None:
             continue
         hero = hero_map.get(parsed_hero_id) if parsed_hero_id is not None else None
@@ -386,7 +427,9 @@ def _import_expeditions(
             campaign=imported_campaign,
             party=party,
             expedition_def=expedition_def,
-            risk_level=str(expedition_data.get("risk_level", Expedition.RiskLevel.STANDARD)),
+            risk_level=str(
+                expedition_data.get("risk_level", Expedition.RiskLevel.STANDARD)
+            ),
             result=expedition_data.get("result", {}),
         )
 
@@ -400,11 +443,17 @@ def _import_step_logs(
     for step_data in payload.get("step_logs", []):
         legacy_party_id = step_data.get("party_legacy_id")
         legacy_hero_id = step_data.get("hero_legacy_id")
-        parsed_party_id = _parse_int(legacy_party_id) if legacy_party_id is not None else None
-        parsed_hero_id = _parse_int(legacy_hero_id) if legacy_hero_id is not None else None
+        parsed_party_id = (
+            _parse_int(legacy_party_id) if legacy_party_id is not None else None
+        )
+        parsed_hero_id = (
+            _parse_int(legacy_hero_id) if legacy_hero_id is not None else None
+        )
         StepLog.objects.create(
             campaign=imported_campaign,
-            party=party_map.get(parsed_party_id) if parsed_party_id is not None else None,
+            party=party_map.get(parsed_party_id)
+            if parsed_party_id is not None
+            else None,
             hero=hero_map.get(parsed_hero_id) if parsed_hero_id is not None else None,
             step_type=str(step_data.get("step_type", "import")),
             action_type=str(step_data.get("action_type", "import")),
@@ -418,8 +467,13 @@ def _import_step_logs(
 @transaction.atomic
 def _import_campaign_payload(payload: dict[str, Any]) -> Campaign:
     campaign_data = payload.get("campaign", {})
-    source_name = str(campaign_data.get("name", "Imported Campaign")).strip() or "Imported Campaign"
-    source_seed = str(campaign_data.get("seed", "imported-seed")).strip() or "imported-seed"
+    source_name = (
+        str(campaign_data.get("name", "Imported Campaign")).strip()
+        or "Imported Campaign"
+    )
+    source_seed = (
+        str(campaign_data.get("seed", "imported-seed")).strip() or "imported-seed"
+    )
     imported_campaign = Campaign.objects.create(
         name=f"{source_name} (Imported)",
         seed=_build_unique_import_seed(source_seed),
@@ -443,9 +497,24 @@ def _get_campaign_for_request(request: HttpRequest, campaign_id: int) -> Campaig
         return get_object_or_404(Campaign, id=campaign_id)
 
     if request.user.is_authenticated:
-        return get_object_or_404(Campaign.objects.filter(id=campaign_id).filter(Q(owner=request.user) | Q(owner__isnull=True)))
+        return get_object_or_404(
+            Campaign.objects.filter(id=campaign_id).filter(
+                Q(owner=request.user) | Q(owner__isnull=True)
+            )
+        )
 
-    return get_object_or_404(Campaign.objects.filter(id=campaign_id, owner__isnull=True))
+    return get_object_or_404(
+        Campaign.objects.filter(id=campaign_id, owner__isnull=True)
+    )
+
+
+def _get_visible_campaigns(request: HttpRequest):
+    campaigns = Campaign.objects.all()
+    if request.user.is_staff:
+        return campaigns
+    if request.user.is_authenticated:
+        return campaigns.filter(Q(owner=request.user) | Q(owner__isnull=True))
+    return campaigns.filter(owner__isnull=True)
 
 
 @require_http_methods(["GET", "POST"])
@@ -461,8 +530,10 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     else:
         form = CampaignCreateForm()
 
-    campaigns = Campaign.objects.order_by("-updated_at")[:10]
-    return render(request, "campaign/dashboard.html", {"form": form, "campaigns": campaigns})
+    campaigns = _get_visible_campaigns(request).order_by("-updated_at")[:10]
+    return render(
+        request, "campaign/dashboard.html", {"form": form, "campaigns": campaigns}
+    )
 
 
 @require_http_methods(["POST"])
@@ -495,24 +566,30 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = _get_campaign_for_request(request, campaign_id)
     party = Party.objects.filter(campaign=campaign).order_by("id").first()
 
-    party_form = PartyCreateForm(initial={"campaign": campaign_id})
-    hero_form = HeroCreateForm()
+    party_form = PartyCreateForm(initial={"campaign": campaign_id}, campaign=campaign)
+    hero_form = HeroCreateForm(party=party)
 
     if request.method == "POST":
         create_type = request.POST.get("create_type")
         if create_type == "party":
-            party_form = PartyCreateForm(request.POST)
+            party_form = PartyCreateForm(request.POST, campaign=campaign)
             if party_form.is_valid():
                 party_form.save()
                 return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
         if create_type == "hero":
-            hero_form = HeroCreateForm(request.POST)
+            hero_form = HeroCreateForm(request.POST, party=party)
             if hero_form.is_valid():
                 created_hero = hero_form.save()
-                return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=created_hero.party.campaign_id)
+                return redirect(
+                    ROUTE_CAMPAIGN_DETAIL, campaign_id=created_hero.party.campaign_id
+                )
 
-    recent_steps = StepLog.objects.filter(campaign=campaign).order_by("-created_at")[:20]
-    latest_expedition = Expedition.objects.filter(campaign=campaign).order_by("-created_at").first()
+    recent_steps = StepLog.objects.filter(campaign=campaign).order_by("-created_at")[
+        :20
+    ]
+    latest_expedition = (
+        Expedition.objects.filter(campaign=campaign).order_by("-created_at").first()
+    )
     expedition_form = ExpeditionForm()
     travel_form = TravelForm()
     hero_action_form = HeroActionForm(party=party)
@@ -556,7 +633,9 @@ def rename_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
 def delete_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = _get_campaign_for_request(request, campaign_id)
     if request.POST.get("confirm_delete") != "yes":
-        messages.warning(request, "Delete cancelled. Tick the confirmation box before deleting.")
+        messages.warning(
+            request, "Delete cancelled. Tick the confirmation box before deleting."
+        )
         return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
     deleted_name = campaign.name
     campaign.delete()
@@ -569,7 +648,9 @@ def export_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = _get_campaign_for_request(request, campaign_id)
     payload = _serialise_campaign(campaign)
     response = JsonResponse(payload, json_dumps_params={"indent": 2})
-    response["Content-Disposition"] = f'attachment; filename="campaign-{campaign.pk}.json"'
+    response["Content-Disposition"] = (
+        f'attachment; filename="campaign-{campaign.pk}.json"'
+    )
     return response
 
 
@@ -588,7 +669,9 @@ def resolve_expedition_run(request: HttpRequest, campaign_id: int) -> HttpRespon
             risk_level=form.cleaned_data["risk_level"],
         )
         message_level = messages.SUCCESS if result.get("success") else messages.WARNING
-        messages.add_message(request, message_level, result.get("narrative", "Expedition resolved."))
+        messages.add_message(
+            request, message_level, result.get("narrative", "Expedition resolved.")
+        )
 
     return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
 
@@ -605,7 +688,10 @@ def resolve_travel(request: HttpRequest, campaign_id: int) -> HttpResponse:
         settlement_size = form.cleaned_data["settlement_size"]
         result = resolve_travel_hazards(party, settlement_size)
         hazard_count = len(result.get("resolved_hazards", []))
-        messages.info(request, f"Travelled to {settlement_size}. Encountered {hazard_count} hazard(s).")
+        messages.info(
+            request,
+            f"Travelled to {settlement_size}. Encountered {hazard_count} hazard(s).",
+        )
     return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
 
 
@@ -647,7 +733,10 @@ def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResp
         if result["status"] == "success":
             messages.success(request, result.get("narrative", "Transaction complete."))
         else:
-            messages.warning(request, f"Transaction failed: {result.get('reason', 'unknown reason')}.")
+            messages.warning(
+                request,
+                f"Transaction failed: {result.get('reason', 'unknown reason')}.",
+            )
 
     return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
 
@@ -668,7 +757,9 @@ def resolve_crafting_action(request: HttpRequest, campaign_id: int) -> HttpRespo
         if result["status"] == "success":
             messages.success(request, result.get("narrative", "Item crafted."))
         else:
-            messages.warning(request, f"Crafting failed: {result.get('reason', 'unknown reason')}.")
+            messages.warning(
+                request, f"Crafting failed: {result.get('reason', 'unknown reason')}."
+            )
     return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
 
 
@@ -709,11 +800,15 @@ def seed_warhammer_content(request: HttpRequest) -> HttpResponse:
     from django.core.management import call_command
 
     call_command("seed_warhammer_content")
-    messages.success(request, "Warhammer-inspired content seeded. Safe to run again; existing canonical rows are preserved.")
+    messages.success(
+        request,
+        "Warhammer-inspired content seeded. Safe to run again; existing canonical rows are preserved.",
+    )
     return redirect(ROUTE_GM_CONSOLE)
 
 
 @staff_member_required
+@require_http_methods(["GET"])
 def step_log_detail(request: HttpRequest, step_id: int) -> HttpResponse:
     step = get_object_or_404(StepLog, id=step_id)
     return render(request, "campaign/step_log_detail.html", {"step": step})

@@ -2,7 +2,15 @@ from typing import Any
 
 from django.db import transaction
 
-from campaign.models import Expedition, ExpeditionDef, Hero, InventoryItem, ItemDef, Party, StepLog
+from campaign.models import (
+    Expedition,
+    ExpeditionDef,
+    Hero,
+    InventoryItem,
+    ItemDef,
+    Party,
+    StepLog,
+)
 from campaign.services.crafting import get_party_encumbrance_penalty
 from campaign.services.rng import DeterministicRng, derive_step_seed
 
@@ -30,23 +38,31 @@ RISK_CONFIG = {
 
 
 @transaction.atomic
-def resolve_expedition(party: Party, expedition_def: ExpeditionDef, risk_level: str) -> dict[str, Any]:
+def resolve_expedition(
+    party: Party, expedition_def: ExpeditionDef, risk_level: str
+) -> dict[str, Any]:
     campaign = party.campaign
     living_heroes = _get_living_heroes(party)
 
     sequence = StepLog.objects.filter(campaign=campaign).count() + 1
-    seed = derive_step_seed(campaign.seed, "expedition", "run", f"party:{party.pk}", sequence)
+    seed = derive_step_seed(
+        campaign.seed, "expedition", "run", f"party:{party.pk}", sequence
+    )
     rng = DeterministicRng(seed)
     config = RISK_CONFIG[risk_level]
     encumbrance_penalty = get_party_encumbrance_penalty(party)
 
     challenge_roll = rng.randint(2, 12)
-    challenge_total = challenge_roll + int(expedition_def.difficulty) + int(config["challenge_mod"])
+    challenge_total = (
+        challenge_roll + int(expedition_def.difficulty) + int(config["challenge_mod"])
+    )
     party_power = sum(hero.level for hero in living_heroes) + len(living_heroes)
     success_margin = party_power - challenge_total
     is_success = success_margin >= 0
 
-    reward_roll = rng.randint(int(expedition_def.base_reward_min), int(expedition_def.base_reward_max))
+    reward_roll = rng.randint(
+        int(expedition_def.base_reward_min), int(expedition_def.base_reward_max)
+    )
     base_reward = int(reward_roll * float(config["reward_pct"]))
     gold_delta = base_reward if is_success else max(0, base_reward // 3)
 
@@ -178,7 +194,9 @@ def _resolve_expedition_injuries(
         )
 
         if injury_roll <= injury_target:
-            injury_record, death_record, condition_record = _apply_expedition_injury(hero, rng, dice_rolled)
+            injury_record, death_record, condition_record = _apply_expedition_injury(
+                hero, rng, dice_rolled
+            )
             injuries.append(injury_record)
             conditions_gained.append(condition_record)
             if death_record is not None:
@@ -245,7 +263,9 @@ def _resolve_expedition_loot(
     if not loot_table:
         return []
 
-    options = [(entry["item_name"], int(entry.get("weight", 1))) for entry in loot_table]
+    options = [
+        (entry["item_name"], int(entry.get("weight", 1))) for entry in loot_table
+    ]
     item_name = rng.weighted_choice(options)
     dice_rolled.append({"die": "weighted", "result": item_name, "context": "loot-roll"})
 

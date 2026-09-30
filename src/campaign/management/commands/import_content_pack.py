@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from campaign.models import (
     CatastrophicEventDef,
@@ -24,8 +25,12 @@ class Command(BaseCommand):
         parser.add_argument("--pack-version", default="")
         parser.add_argument("--input", default="")
 
+    @transaction.atomic
     def handle(self, *args, **options):
-        payload = self._load_payload(options["name"], options["pack_version"], options["input"])
+        del args
+        payload = self._load_payload(
+            options["name"], options["pack_version"], options["input"]
+        )
 
         self._upsert_hazards(payload.get("hazards", []))
         self._upsert_settlement_events(payload.get("settlement_events", []))
@@ -46,7 +51,9 @@ class Command(BaseCommand):
             return json.loads(file_path.read_text(encoding="utf-8"))
 
         if not name:
-            raise CommandError("Provide --input or --name for stored ContentPack import.")
+            raise CommandError(
+                "Provide --input or --name for stored ContentPack import."
+            )
 
         queryset = ContentPack.objects.filter(name=name)
         if version:

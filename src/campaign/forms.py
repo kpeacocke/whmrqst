@@ -27,11 +27,40 @@ class PartyCreateForm(forms.ModelForm):
         model = Party
         fields = ["campaign", "name", "gold", "supplies", "morale"]
 
+    def __init__(self, *args, **kwargs):
+        campaign = kwargs.pop("campaign", None)
+        super().__init__(*args, **kwargs)
+        campaign_field = self.fields["campaign"]
+        if isinstance(campaign_field, forms.ModelChoiceField):
+            campaign_field.queryset = (
+                Campaign.objects.filter(pk=campaign.pk, parties__isnull=True)
+                if campaign is not None
+                else Campaign.objects.none()
+            )
+
 
 class HeroCreateForm(forms.ModelForm):
     class Meta:
         model = Hero
         fields = ["party", "name", "archetype", "level", "max_health", "current_health"]
+
+    def __init__(self, *args, **kwargs):
+        party = kwargs.pop("party", None)
+        super().__init__(*args, **kwargs)
+        party_field = self.fields["party"]
+        if isinstance(party_field, forms.ModelChoiceField):
+            party_field.queryset = (
+                Party.objects.filter(pk=party.pk)
+                if party is not None
+                else Party.objects.none()
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        party = cleaned_data.get("party")
+        if party is not None and party.heroes.count() >= 4:
+            self.add_error("party", "A party can have no more than four heroes.")
+        return cleaned_data
 
 
 class TravelForm(forms.Form):

@@ -3,7 +3,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("campaign", "0002_campaign_state_and_locations"),
     ]
@@ -12,7 +11,15 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="HeroSkill",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("source", models.CharField(default="training", max_length=60)),

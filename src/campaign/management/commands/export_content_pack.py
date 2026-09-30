@@ -26,6 +26,7 @@ class Command(BaseCommand):
         parser.add_argument("--output", default="")
 
     def handle(self, *args, **options):
+        del args
         source = options["source"]
         pack_name = options["name"]
         version = options["pack_version"]
@@ -33,9 +34,21 @@ class Command(BaseCommand):
 
         payload = {
             "source": source,
-            "hazards": list(HazardDef.objects.filter(definition__source=source).values("name", "settlement_size", "severity", "definition")),
-            "settlement_events": list(SettlementEventDef.objects.filter(definition__source=source).values("name", "weight", "definition")),
-            "catastrophic_events": list(CatastrophicEventDef.objects.filter(definition__source=source).values("name", "weight", "definition")),
+            "hazards": list(
+                HazardDef.objects.filter(definition__source=source).values(
+                    "name", "settlement_size", "severity", "definition"
+                )
+            ),
+            "settlement_events": list(
+                SettlementEventDef.objects.filter(definition__source=source).values(
+                    "name", "weight", "definition"
+                )
+            ),
+            "catastrophic_events": list(
+                CatastrophicEventDef.objects.filter(definition__source=source).values(
+                    "name", "weight", "definition"
+                )
+            ),
             "locations": list(
                 SettlementLocationDef.objects.filter(definition__source=source).values(
                     "code",
@@ -47,8 +60,21 @@ class Command(BaseCommand):
                     "definition",
                 )
             ),
-            "items": list(ItemDef.objects.filter(definition__source=source).values("name", "category", "base_price", "stock_value", "weight", "definition")),
-            "skills": list(SkillDef.objects.filter(definition__source=source).values("name", "archetype", "description", "definition")),
+            "items": list(
+                ItemDef.objects.filter(definition__source=source).values(
+                    "name",
+                    "category",
+                    "base_price",
+                    "stock_value",
+                    "weight",
+                    "definition",
+                )
+            ),
+            "skills": list(
+                SkillDef.objects.filter(definition__source=source).values(
+                    "name", "archetype", "description", "definition"
+                )
+            ),
             "expeditions": list(
                 ExpeditionDef.objects.filter(definition__source=source).values(
                     "code",
@@ -61,7 +87,11 @@ class Command(BaseCommand):
                     "definition",
                 )
             ),
-            "crafting_recipes": list(CraftingRecipeDef.objects.filter(definition__source=source).values("code", "name", "definition")),
+            "crafting_recipes": list(
+                CraftingRecipeDef.objects.filter(definition__source=source).values(
+                    "code", "name", "definition"
+                )
+            ),
         }
 
         if not any(payload[key] for key in payload if key != "source"):
@@ -72,10 +102,16 @@ class Command(BaseCommand):
             version=version,
             defaults={"is_active": True, "content": payload},
         )
-        self.stdout.write(self.style.SUCCESS(f"Stored content pack {content_pack.name} v{content_pack.version}."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Stored content pack {content_pack.name} v{content_pack.version}."
+            )
+        )
 
         if output:
             output_path = Path(output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            self.stdout.write(self.style.SUCCESS(f"Wrote content pack JSON: {output_path}"))
+            self.stdout.write(
+                self.style.SUCCESS(f"Wrote content pack JSON: {output_path}")
+            )

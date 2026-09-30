@@ -1,7 +1,14 @@
 from django.db import transaction
 from django.db.models import F, Sum
 
-from campaign.models import CraftingRecipeDef, Hero, InventoryItem, ItemDef, Party, StepLog
+from campaign.models import (
+    CraftingRecipeDef,
+    Hero,
+    InventoryItem,
+    ItemDef,
+    Party,
+    StepLog,
+)
 from campaign.services.rng import derive_step_seed
 
 
@@ -15,10 +22,9 @@ def get_hero_carry_capacity(hero: Hero) -> int:
 
 def get_hero_carry_weight(hero: Hero) -> int:
     """Return the current total weight of items assigned to this hero."""
-    result = (
-        InventoryItem.objects.filter(hero=hero)
-        .aggregate(total=Sum(F("item_def__weight") * F("quantity")))["total"]
-    )
+    result = InventoryItem.objects.filter(hero=hero).aggregate(
+        total=Sum(F("item_def__weight") * F("quantity"))
+    )["total"]
     return result or 0
 
 

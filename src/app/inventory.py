@@ -3,6 +3,7 @@ class Item:
         self.name = name
         self.quantity = quantity
 
+
 class Inventory:
     def __init__(self, capacity):
         self.capacity = capacity

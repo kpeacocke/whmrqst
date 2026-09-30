@@ -9,15 +9,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt gunicorn==23.0.0
 
 COPY manage.py /app/manage.py
 COPY src /app/src
 COPY config /app/config
 
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
-USER appuser
+USER 5678:5678
 
 EXPOSE 8000
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "questbetween.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]

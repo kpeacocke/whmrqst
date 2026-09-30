@@ -1,10 +1,11 @@
-
 # Mock classes for Inventory and Crafting Systems
+
 
 class Item:
     def __init__(self, name, quantity=1):
         self.name = name
         self.quantity = quantity
+
 
 class Inventory:
     def __init__(self, capacity):
@@ -51,6 +52,7 @@ class Inventory:
                 else:
                     self.items.remove(item)
 
+
 class CraftingSystem:
     def __init__(self, recipes):
         self.recipes = recipes  # Dictionary of recipes
@@ -62,8 +64,12 @@ class CraftingSystem:
 
         recipe = self.recipes[recipe_name]
         if inventory.has_items(recipe["materials"]):
+            result_name = recipe["result"]
+            has_result_stack = inventory.get_item(result_name) is not None
+            if not has_result_stack and len(inventory.items) >= inventory.capacity:
+                return None
             inventory.remove_items(recipe["materials"])
-            crafted_item = Item(recipe["result"], quantity=recipe.get("quantity", 1))
+            crafted_item = Item(result_name, quantity=recipe.get("quantity", 1))
             inventory.add_item(crafted_item)
             return crafted_item
         return None
@@ -73,102 +79,131 @@ class CraftingSystem:
 
 # Inventory Management
 
+
 def test_add_item_to_inventory():
     # Ensure that items can be added to the inventory
     inventory = Inventory(capacity=5)
-    
+
     sword = Item(name="Sword")
     shield = Item(name="Shield")
-    
+
     assert inventory.add_item(sword), "Sword should be added to the inventory."
     assert inventory.add_item(shield), "Shield should be added to the inventory."
-    
+
     assert len(inventory.items) == 2, "Inventory should contain two items."
+
 
 def test_remove_item_from_inventory():
     # Ensure that items can be removed from the inventory
     inventory = Inventory(capacity=5)
-    
+
     potion = Item(name="Potion")
     inventory.add_item(potion)
-    
-    assert inventory.remove_item("Potion"), "Potion should be removed from the inventory."
-    assert len(inventory.items) == 0, "Inventory should be empty after removing the item."
+
+    assert inventory.remove_item("Potion"), (
+        "Potion should be removed from the inventory."
+    )
+    assert len(inventory.items) == 0, (
+        "Inventory should be empty after removing the item."
+    )
+
 
 def test_inventory_capacity_limit():
     # Ensure that items cannot be added when inventory is full
     inventory = Inventory(capacity=2)
-    
+
     item1 = Item(name="Sword")
     item2 = Item(name="Shield")
     item3 = Item(name="Helmet")
-    
+
     assert inventory.add_item(item1), "Sword should be added."
     assert inventory.add_item(item2), "Shield should be added."
-    assert not inventory.add_item(item3), "Helmet should not be added as inventory is full."
-    
+    assert not inventory.add_item(item3), (
+        "Helmet should not be added as inventory is full."
+    )
+
     assert len(inventory.items) == 2, "Inventory should contain only two items."
 
+
 # Crafting System
+
 
 def test_craft_item_success():
     # Ensure that items can be crafted if materials are available
     inventory = Inventory(capacity=5)
     inventory.add_item(Item(name="Wood", quantity=3))
     inventory.add_item(Item(name="Iron", quantity=2))
-    
+
     recipes = {
         "Sword": {
             "materials": {"Wood": 1, "Iron": 2},
             "result": "Sword",
         }
     }
-    
+
     crafting_system = CraftingSystem(recipes)
     crafted_item = crafting_system.craft(inventory, "Sword")
-    
+
     assert crafted_item is not None, "Sword should be crafted."
     assert crafted_item.name == "Sword", "Crafted item should be a Sword."
-    assert inventory.get_item("Wood").quantity == 2, "Wood quantity should decrease after crafting."
-    assert inventory.get_item("Iron") is None, "All Iron should be consumed after crafting."
+    wood = inventory.get_item("Wood")
+    assert wood is not None
+    assert wood.quantity == 2, "Wood quantity should decrease after crafting."
+    assert inventory.get_item("Iron") is None, (
+        "All Iron should be consumed after crafting."
+    )
+
 
 def test_craft_item_insufficient_materials():
     # Ensure that crafting fails if materials are insufficient
     inventory = Inventory(capacity=5)
     inventory.add_item(Item(name="Wood", quantity=1))
     inventory.add_item(Item(name="Iron", quantity=1))
-    
+
     recipes = {
         "Sword": {
             "materials": {"Wood": 1, "Iron": 2},
             "result": "Sword",
         }
     }
-    
+
     crafting_system = CraftingSystem(recipes)
     crafted_item = crafting_system.craft(inventory, "Sword")
-    
+
     assert crafted_item is None, "Sword should not be crafted due to insufficient Iron."
-    assert inventory.get_item("Wood").quantity == 1, "No materials should be consumed on crafting failure."
-    assert inventory.get_item("Iron").quantity == 1, "No Iron should be consumed on crafting failure."
+    wood = inventory.get_item("Wood")
+    iron = inventory.get_item("Iron")
+    assert wood is not None
+    assert iron is not None
+    assert wood.quantity == 1, "No materials should be consumed on crafting failure."
+    assert iron.quantity == 1, "No Iron should be consumed on crafting failure."
+
 
 def test_craft_item_inventory_full():
     # Ensure crafting fails if there's no space in inventory for the crafted item
     inventory = Inventory(capacity=2)
     inventory.add_item(Item(name="Wood", quantity=3))
     inventory.add_item(Item(name="Iron", quantity=2))
-    
+
     # Inventory full with other items
     inventory.add_item(Item(name="Shield"))
-    
+
     recipes = {
         "Sword": {
             "materials": {"Wood": 1, "Iron": 2},
             "result": "Sword",
         }
     }
-    
+
     crafting_system = CraftingSystem(recipes)
     crafted_item = crafting_system.craft(inventory, "Sword")
-    
-    assert crafted_item is None, "Sword should not be crafted because inventory is full."
+
+    assert crafted_item is None, (
+        "Sword should not be crafted because inventory is full."
+    )
+    wood = inventory.get_item("Wood")
+    iron = inventory.get_item("Iron")
+    assert wood is not None
+    assert iron is not None
+    assert wood.quantity == 3
+    assert iron.quantity == 2

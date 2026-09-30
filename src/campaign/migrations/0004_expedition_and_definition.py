@@ -3,7 +3,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("campaign", "0003_hero_skill"),
     ]
@@ -12,7 +11,15 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="ExpeditionDef",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("code", models.CharField(max_length=40, unique=True)),
@@ -31,13 +38,25 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="Expedition",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 (
                     "risk_level",
                     models.CharField(
-                        choices=[("cautious", "Cautious"), ("standard", "Standard"), ("reckless", "Reckless")],
+                        choices=[
+                            ("cautious", "Cautious"),
+                            ("standard", "Standard"),
+                            ("reckless", "Reckless"),
+                        ],
                         default="standard",
                         max_length=20,
                     ),

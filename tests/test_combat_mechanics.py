@@ -1,8 +1,9 @@
 import random
 
+
 # Mock Character class for testing purposes
 class Character:
-    def __init__(self, name, strength, defense, hp, crit_chance=0):
+    def __init__(self, name, strength, defense, hp, crit_chance=0.0):
         self.name = name
         self.strength = strength
         self.defense = defense
@@ -29,10 +30,11 @@ class Combat:
         # Attack success is determined by comparing the attacker's strength and defender's defense
         attack_roll = random.randint(1, 20) + attacker.strength
         if attack_roll > defender.defense:
-            # If critical hit, deal double damage
+            damage = self.calculate_damage(attacker)
             if attacker.is_critical_hit():
-                return self.calculate_damage(attacker) * 2
-            return self.calculate_damage(attacker)
+                damage *= 2
+            defender.take_damage(damage)
+            return damage
         else:
             return 0  # Attack missed
 
@@ -42,6 +44,7 @@ class Combat:
 
 
 # Test cases for Combat Mechanics
+
 
 def test_attack_success():
     # Scenario 1: Ensure that an attack succeeds or fails based on strength vs defense
@@ -55,9 +58,12 @@ def test_attack_success():
 
     damage = combat.attack(attacker, defender)
     if damage > 0:
-        assert defender.hp == 100 - damage, f"Defender HP should decrease by {damage}, but got {defender.hp}"
+        assert defender.hp == 100 - damage, (
+            f"Defender HP should decrease by {damage}, but got {defender.hp}"
+        )
     else:
         assert defender.hp == 100, "Defender HP should remain 100 if attack misses"
+
 
 def test_damage_calculation():
     # Scenario 2: Ensure that damage is correctly calculated based on strength
@@ -70,12 +76,19 @@ def test_damage_calculation():
     random.seed(1)  # Seed for reproducibility
     damage = combat.attack(attacker, defender)
 
-    assert defender.hp == 50 - damage, f"Defender HP should decrease by {damage}, but got {defender.hp}"
-    assert 9 <= damage <= 14, f"Damage should be between 9 and 14 (strength + random 1-6), but got {damage}"
+    assert defender.hp == 50 - damage, (
+        f"Defender HP should decrease by {damage}, but got {defender.hp}"
+    )
+    assert 9 <= damage <= 14, (
+        f"Damage should be between 9 and 14 (strength + random 1-6), but got {damage}"
+    )
+
 
 def test_critical_hit():
     # Scenario 3: Ensure critical hits deal double damage
-    attacker = Character(name="Assassin", strength=10, defense=0, hp=100, crit_chance=1.0)  # Guaranteed crit
+    attacker = Character(
+        name="Assassin", strength=10, defense=0, hp=100, crit_chance=1.0
+    )  # Guaranteed crit
     defender = Character(name="Orc", strength=5, defense=10, hp=50)
 
     combat = Combat()
@@ -83,5 +96,9 @@ def test_critical_hit():
     random.seed(1)  # Seed random for reproducible results
     damage = combat.attack(attacker, defender)
 
-    assert damage >= 20, f"Critical hit should deal at least 20 damage, but got {damage}."
-    assert defender.hp == 50 - damage, f"Defender HP should decrease by {damage}, but got {defender.hp}"
+    assert damage >= 20, (
+        f"Critical hit should deal at least 20 damage, but got {damage}."
+    )
+    assert defender.hp == 50 - damage, (
+        f"Defender HP should decrease by {damage}, but got {defender.hp}"
+    )

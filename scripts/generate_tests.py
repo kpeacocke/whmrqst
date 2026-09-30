@@ -5,22 +5,27 @@ import re
 WIKI_DIR = "docs/requirements"
 TEST_DIR = "tests"
 
+
 def sanitize_filename(filename):
     """
     Converts a string into a valid file name by removing unsafe characters.
     """
     # Remove non-alphanumeric characters (except spaces), replace spaces with underscores, and lowercase everything.
-    filename = re.sub(r'[^\w\s-]', '', filename).strip().lower()
-    return re.sub(r'[\s]+', '_', filename)
+    filename = re.sub(r"[^\w\s-]", "", filename).strip().lower()
+    return re.sub(r"[\s]+", "_", filename)
+
 
 def parse_requirements_from_md(md_file_path):
     # Simple parser for demo purposes. Customize as needed.
     requirements = []
-    with open(md_file_path, 'r') as md_file:
+    with open(md_file_path, "r") as md_file:
         for line in md_file:
-            if line.strip().startswith("## "):  # Assuming requirements sections start with "##"
+            if line.strip().startswith(
+                "## "
+            ):  # Assuming requirements sections start with "##"
                 requirements.append(line.strip().replace("## ", ""))
     return requirements
+
 
 def generate_test_file(requirement):
     # Create a more detailed template for Copilot suggestions
@@ -48,11 +53,14 @@ def test_{sanitize_filename(requirement)}():
 """
     return test_template
 
+
 def main():
     if not os.path.exists(TEST_DIR):
         os.makedirs(TEST_DIR)
 
-    md_files = [os.path.join(WIKI_DIR, f) for f in os.listdir(WIKI_DIR) if f.endswith(".md")]
+    md_files = [
+        os.path.join(WIKI_DIR, f) for f in os.listdir(WIKI_DIR) if f.endswith(".md")
+    ]
 
     for md_file in md_files:
         requirements = parse_requirements_from_md(md_file)
@@ -66,8 +74,9 @@ def main():
 
             print(f"Generating test for requirement: {req} -> {test_file_path}")
 
-            with open(test_file_path, 'w') as test_file:
+            with open(test_file_path, "w") as test_file:
                 test_file.write(test_content)
+
 
 if __name__ == "__main__":
     main()

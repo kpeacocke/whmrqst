@@ -1,5 +1,5 @@
-
 # Mock classes for UI and System Polish
+
 
 class UI:
     def __init__(self):
@@ -55,50 +55,65 @@ class Item:
 
 # UI Polish
 
+
 def test_inventory_ui_update():
     # Ensure the UI correctly updates when items are added or removed
     inventory = Inventory(capacity=5)
     sword = Item(name="Sword")
     shield = Item(name="Shield")
-    
+
     ui = UI()
     inventory.add_item(sword)
     inventory.add_item(shield)
-    
+
     ui.update_inventory(inventory)
-    
-    assert ui.displayed_items == ["Sword", "Shield"], "UI should display 'Sword' and 'Shield' in inventory."
+
+    assert ui.displayed_items == ["Sword", "Shield"], (
+        "UI should display 'Sword' and 'Shield' in inventory."
+    )
 
     # Now remove the shield and check the UI again
     inventory.remove_item("Shield")
     ui.update_inventory(inventory)
-    
-    assert ui.displayed_items == ["Sword"], "UI should display only 'Sword' after Shield is removed."
+
+    assert ui.displayed_items == ["Sword"], (
+        "UI should display only 'Sword' after Shield is removed."
+    )
+
 
 def test_health_ui_update():
     # Ensure the UI health bar updates correctly when the player takes damage
     player = Player(health=100)
     ui = UI()
-    
+
     player.take_damage(30)
     ui.update_health(player)
-    
-    assert ui.displayed_health == 70, "Health UI should display 70 after player takes 30 damage."
+
+    assert ui.displayed_health == 70, (
+        "Health UI should display 70 after player takes 30 damage."
+    )
 
     player.take_damage(80)
     ui.update_health(player)
-    
-    assert ui.displayed_health == 0, "Health UI should display 0 after player's health is reduced to 0."
+
+    assert ui.displayed_health == 0, (
+        "Health UI should display 0 after player's health is reduced to 0."
+    )
+
 
 # Edge Case Handling
+
 
 def test_empty_inventory_ui():
     # Ensure UI handles an empty inventory
     inventory = Inventory(capacity=5)
     ui = UI()
-    
+
     ui.update_inventory(inventory)
-    assert ui.displayed_items == [], "UI should display an empty inventory when there are no items."
+    assert ui.displayed_items == [], (
+        "UI should display an empty inventory when there are no items."
+    )
+
 
 def test_inventory_full():
     # Ensure that inventory behaves correctly when full
@@ -106,27 +121,35 @@ def test_inventory_full():
     sword = Item(name="Sword")
     shield = Item(name="Shield")
     potion = Item(name="Potion")
-    
+
     assert inventory.add_item(sword), "Sword should be added."
     assert inventory.add_item(shield), "Shield should be added."
-    assert not inventory.add_item(potion), "Potion should not be added because inventory is full."
+    assert not inventory.add_item(potion), (
+        "Potion should not be added because inventory is full."
+    )
+
 
 # Performance Testing Under Load
+
 
 def test_inventory_performance_under_load():
     # Simulate adding a large number of items to the inventory and ensure no performance issues
     inventory = Inventory(capacity=1000)
     ui = UI()
-    
+
     for i in range(1000):
         inventory.add_item(Item(name=f"Item_{i}"))
-    
+
     ui.update_inventory(inventory)
-    
-    assert len(ui.displayed_items) == 1000, "UI should correctly display 1000 items in the inventory."
+
+    assert len(ui.displayed_items) == 1000, (
+        "UI should correctly display 1000 items in the inventory."
+    )
     assert inventory.items[-1].name == "Item_999", "The last item should be 'Item_999'."
 
+
 # Input Handling
+
 
 def test_invalid_input_movement():
     # Ensure the player cannot move out of bounds or perform invalid actions
@@ -136,14 +159,21 @@ def test_invalid_input_movement():
             return "Invalid Move"
         return f"Player moved to ({x}, {y})"
 
-    assert move_player(-1, 5) == "Invalid Move", "Player should not be able to move to negative coordinates."
-    assert move_player(10, -3) == "Invalid Move", "Player should not be able to move to negative coordinates."
+    assert move_player(-1, 5) == "Invalid Move", (
+        "Player should not be able to move to negative coordinates."
+    )
+    assert move_player(10, -3) == "Invalid Move", (
+        "Player should not be able to move to negative coordinates."
+    )
+
 
 def test_invalid_inventory_item_removal():
     # Ensure removing an item that isn't in the inventory doesn't cause issues
     inventory = Inventory(capacity=5)
     sword = Item(name="Sword")
-    
-    assert not inventory.remove_item("NonExistentItem"), "Trying to remove an item not in the inventory should return False."
+
+    assert not inventory.remove_item("NonExistentItem"), (
+        "Trying to remove an item not in the inventory should return False."
+    )
     inventory.add_item(sword)
     assert inventory.remove_item("Sword"), "Sword should be successfully removed."

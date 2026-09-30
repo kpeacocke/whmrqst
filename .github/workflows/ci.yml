@@ -29,5 +29,14 @@ jobs:
       - name: Check migrations are committed
         run: python manage.py makemigrations --check --dry-run --settings=questbetween.settings_test
 
+      - name: Check lint, formatting, and types
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m mypy
+
+      - name: Run pytest suite
+        run: python -m pytest -q
+
       - name: Run tests
-        run: python manage.py test --settings=questbetween.settings_test
+        run: python manage.py test campaign --settings=questbetween.settings_test

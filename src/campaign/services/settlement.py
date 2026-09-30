@@ -1,29 +1,58 @@
 from django.db import transaction
 from typing import Any
 
-from campaign.models import CatastrophicEventDef, Hero, HeroSkill, Party, SettlementEventDef, SkillDef, StepLog
+from campaign.models import (
+    CatastrophicEventDef,
+    Campaign,
+    Hero,
+    HeroSkill,
+    Party,
+    SettlementEventDef,
+    SkillDef,
+    StepLog,
+)
 from campaign.services.rng import DeterministicRng, derive_step_seed
+
+DAILY_ACTION_TYPES = ("rest", "heal", "train", "special")
+COMPLETION_ACTION_TYPES = (*DAILY_ACTION_TYPES, "unavailable")
 
 
 @transaction.atomic
-def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str = "town") -> dict:
-    party = hero.party
-    campaign = party.campaign
+def resolve_settlement_action(
+    hero: Hero, action_type: str, settlement_size: str = "town"
+) -> dict:
+    party = Party.objects.select_for_update().get(pk=hero.party.pk)
+    campaign = Campaign.objects.select_for_update().get(pk=party.campaign.pk)
+    hero = Hero.objects.select_for_update().get(pk=hero.pk)
+    campaign_day = campaign.current_day
 
-    # Enforce unavailability: hero cannot act; day still passes.
+    if not hero.alive:
+        raise ValueError("A deceased hero cannot take a settlement action")
+    if action_type not in DAILY_ACTION_TYPES:
+        raise ValueError(f"Unsupported settlement action: {action_type}")
+
+    already_acted = StepLog.objects.filter(
+        campaign=campaign,
+        hero=hero,
+        step_type="settlement",
+        action_type__in=COMPLETION_ACTION_TYPES,
+        effects_applied__campaign_day=campaign_day,
+    ).exists()
+    if already_acted:
+        raise ValueError("Hero has already taken an action today")
+
     if hero.days_unavailable > 0:
         hero.days_unavailable = max(0, hero.days_unavailable - 1)
         hero.save(update_fields=["days_unavailable", "updated_at"])
-        campaign.current_day += 1
-        campaign.current_week = ((campaign.current_day - 1) // 7) + 1
-        campaign.save(update_fields=["current_day", "current_week", "updated_at"])
         remaining = hero.days_unavailable
         narrative = (
             f"{hero.name} is unavailable ({remaining} day(s) remaining)."
             if remaining > 0
             else f"{hero.name} has recovered and is available again."
         )
-        unavail_seed = _next_seed(campaign, "settlement", "unavailable", f"hero:{hero.pk}")
+        unavail_seed = _next_seed(
+            campaign, "settlement", "unavailable", f"hero:{hero.pk}"
+        )
         StepLog.objects.create(
             campaign=campaign,
             party=party,
@@ -32,21 +61,28 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
             action_type="unavailable",
             rng_seed=unavail_seed,
             dice_rolled=[],
-            effects_applied={"days_unavailable_delta": -1},
+            effects_applied={
+                "campaign_day": campaign_day,
+                "days_unavailable_delta": -1,
+            },
             narrative=narrative,
         )
+        catastrophic_result = _advance_day_if_complete(campaign, party, campaign_day)
         return {
             "action_log_id": None,
             "action_effects": {"narrative": narrative},
             "settlement_event": None,
-            "catastrophic_event": None,
+            "catastrophic_event": catastrophic_result,
             "current_day": campaign.current_day,
             "current_week": campaign.current_week,
         }
 
     action_seed = _next_seed(campaign, "settlement", action_type, f"hero:{hero.pk}")
     rng = DeterministicRng(action_seed)
-    action_effects, action_dice = _apply_daily_action(hero, action_type, settlement_size, rng)
+    action_effects, action_dice = _apply_daily_action(
+        hero, action_type, settlement_size, rng
+    )
+    action_effects["campaign_day"] = campaign_day
     action_log = StepLog.objects.create(
         campaign=campaign,
         party=party,
@@ -56,18 +92,13 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
         rng_seed=action_seed,
         dice_rolled=action_dice,
         effects_applied=action_effects,
-        narrative=action_effects.get("narrative", f"{hero.name} performs action: {action_type}"),
+        narrative=action_effects.get(
+            "narrative", f"{hero.name} performs action: {action_type}"
+        ),
     )
 
-    event_result = _resolve_settlement_event(hero)
-
-    campaign.current_day += 1
-    campaign.current_week = ((campaign.current_day - 1) // 7) + 1
-    campaign.save(update_fields=["current_day", "current_week", "updated_at"])
-
-    catastrophic_result = None
-    if campaign.current_week > 2 and campaign.current_day % 7 == 0:
-        catastrophic_result = _resolve_catastrophic_event(party)
+    event_result = _resolve_settlement_event(hero, campaign_day)
+    catastrophic_result = _advance_day_if_complete(campaign, party, campaign_day)
 
     return {
         "action_log_id": int(action_log.pk),
@@ -79,7 +110,58 @@ def resolve_settlement_action(hero: Hero, action_type: str, settlement_size: str
     }
 
 
-def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng: DeterministicRng) -> tuple[dict, list]:
+def _advance_day_if_complete(
+    campaign: Campaign, party: Party, campaign_day: int
+) -> dict | None:
+    living_hero_ids = set(
+        Hero.objects.filter(party=party, alive=True).values_list("id", flat=True)
+    )
+    if not living_hero_ids:
+        return None
+
+    completed_hero_ids = set(
+        StepLog.objects.filter(
+            campaign=campaign,
+            hero_id__in=living_hero_ids,
+            step_type="settlement",
+            action_type__in=COMPLETION_ACTION_TYPES,
+            effects_applied__campaign_day=campaign_day,
+        ).values_list("hero_id", flat=True)
+    )
+    if completed_hero_ids != living_hero_ids:
+        return None
+
+    campaign.current_day = campaign_day + 1
+    campaign.current_week = ((campaign.current_day - 1) // 7) + 1
+    campaign.save(update_fields=["current_day", "current_week", "updated_at"])
+
+    sequence = StepLog.objects.filter(campaign=campaign).count() + 1
+    seed = derive_step_seed(
+        campaign.seed, "settlement", "day_advance", f"party:{party.pk}", sequence
+    )
+    StepLog.objects.create(
+        campaign=campaign,
+        party=party,
+        step_type="settlement",
+        action_type="day_advance",
+        rng_seed=seed,
+        dice_rolled=[],
+        effects_applied={
+            "completed_day": campaign_day,
+            "current_day": campaign.current_day,
+            "current_week": campaign.current_week,
+        },
+        narrative=f"Day {campaign_day} is complete.",
+    )
+
+    if campaign_day >= 14 and campaign_day % 7 == 0:
+        return _resolve_catastrophic_event(party, campaign_day)
+    return None
+
+
+def _apply_daily_action(
+    hero: Hero, action_type: str, settlement_size: str, rng: DeterministicRng
+) -> tuple[dict, list]:
     party = hero.party
     effects: dict[str, Any] = {
         "hero_health_delta": 0,
@@ -99,7 +181,16 @@ def _apply_daily_action(hero: Hero, action_type: str, settlement_size: str, rng:
     elif action_type == "special":
         _apply_special_action(hero, party, settlement_size, rng, effects, dice_rolled)
 
-    hero.save(update_fields=["current_health", "level", "max_health", "stats", "conditions", "updated_at"])
+    hero.save(
+        update_fields=[
+            "current_health",
+            "level",
+            "max_health",
+            "stats",
+            "conditions",
+            "updated_at",
+        ]
+    )
     party.save(update_fields=["gold", "morale", "updated_at"])
     if should_grant_level_up_skill:
         _grant_level_up_skill(hero)
@@ -157,14 +248,19 @@ def _apply_special_action(
     effects: dict[str, Any],
     dice_rolled: list[dict[str, Any]],
 ) -> None:
-    from campaign.services.location import apply_location_effects, resolve_location_access
+    from campaign.services.location import (
+        apply_location_effects,
+        resolve_location_access,
+    )
 
     location, find_dice = resolve_location_access(settlement_size, rng)
     dice_rolled.extend(find_dice)
     if location is None:
         effects["party_morale_delta"] -= 1
         party.morale -= 1
-        effects["narrative"] = f"{hero.name} finds no special location in this {settlement_size}."
+        effects["narrative"] = (
+            f"{hero.name} finds no special location in this {settlement_size}."
+        )
         return
 
     loc_effects, loc_dice = apply_location_effects(hero, party, location, rng)
@@ -175,12 +271,16 @@ def _apply_special_action(
     effects["skill_learned"] = loc_effects.get("skill_learned")
     effects["location_visited"] = location.code
     effects["rejected"] = loc_effects.get("rejected")
-    effects["narrative"] = loc_effects.get("narrative", f"{hero.name} visits {location.name}.")
+    effects["narrative"] = loc_effects.get(
+        "narrative", f"{hero.name} visits {location.name}."
+    )
 
 
 def _grant_level_up_skill(hero: Hero) -> HeroSkill | None:
     """Award the next unlearned archetype skill to a hero who just levelled up."""
-    already_learned = set(HeroSkill.objects.filter(hero=hero).values_list("skill_def_id", flat=True))
+    already_learned = set(
+        HeroSkill.objects.filter(hero=hero).values_list("skill_def_id", flat=True)
+    )
     skill_def = (
         SkillDef.objects.filter(archetype=hero.archetype)
         .exclude(id__in=already_learned)
@@ -192,7 +292,7 @@ def _grant_level_up_skill(hero: Hero) -> HeroSkill | None:
     return HeroSkill.objects.create(hero=hero, skill_def=skill_def, source="level_up")
 
 
-def _resolve_settlement_event(hero: Hero) -> dict | None:
+def _resolve_settlement_event(hero: Hero, campaign_day: int) -> dict | None:
     party = hero.party
     campaign = party.campaign
     events = list(SettlementEventDef.objects.all())
@@ -204,6 +304,7 @@ def _resolve_settlement_event(hero: Hero) -> dict | None:
     weighted_events = [(event, event.weight) for event in events]
     selected = rng.weighted_choice(weighted_events)
     effects = _apply_event_effects(hero, selected.definition.get("effects", []), rng)
+    effects["campaign_day"] = campaign_day
     _apply_settlement_rule_flag(hero, selected.definition.get("rule_flag"))
 
     event_log = StepLog.objects.create(
@@ -221,7 +322,7 @@ def _resolve_settlement_event(hero: Hero) -> dict | None:
     return {"name": selected.name, "effects": effects, "log_id": int(event_log.pk)}
 
 
-def _resolve_catastrophic_event(party: Party) -> dict | None:
+def _resolve_catastrophic_event(party: Party, campaign_day: int) -> dict | None:
     campaign = party.campaign
     events = list(CatastrophicEventDef.objects.all())
     if not events:
@@ -232,7 +333,10 @@ def _resolve_catastrophic_event(party: Party) -> dict | None:
     weighted_events = [(event, event.weight) for event in events]
     selected = rng.weighted_choice(weighted_events)
 
-    effects = _apply_event_effects(None, selected.definition.get("effects", []), rng, party=party)
+    effects = _apply_event_effects(
+        None, selected.definition.get("effects", []), rng, party=party
+    )
+    effects["campaign_day"] = campaign_day
     _apply_catastrophic_state(party, str(selected.definition.get("table_roll", "")))
     log = StepLog.objects.create(
         campaign=campaign,
@@ -254,16 +358,24 @@ def _apply_event_effects(
     party: Party | None = None,
 ) -> dict:
     target_party = party or (hero.party if hero else None)
-    applied: dict[str, int] = {"hero_health_delta": 0, "party_gold_delta": 0, "party_morale_delta": 0}
+    applied: dict[str, int] = {
+        "hero_health_delta": 0,
+        "party_gold_delta": 0,
+        "party_morale_delta": 0,
+    }
 
     for effect in effect_defs:
         effect_type = str(effect.get("type", ""))
         min_value = int(effect.get("min", 0))
         max_value = int(effect.get("max", min_value))
-        value = rng.randint(min_value, max_value) if max_value >= min_value else min_value
+        value = (
+            rng.randint(min_value, max_value) if max_value >= min_value else min_value
+        )
 
         if effect_type == "hero_health" and hero:
-            hero.current_health = max(0, min(hero.max_health, hero.current_health + value))
+            hero.current_health = max(
+                0, min(hero.max_health, hero.current_health + value)
+            )
             applied["hero_health_delta"] += value
         elif effect_type == "party_gold" and target_party:
             target_party.gold = max(0, target_party.gold + value)
@@ -333,4 +445,11 @@ def _apply_catastrophic_state(party: Party, table_roll: str) -> None:
     elif table_roll == "12":
         party.disease_risk_active = True
 
-    party.save(update_fields=["hardship_price_multiplier", "forced_departure", "disease_risk_active", "updated_at"])
+    party.save(
+        update_fields=[
+            "hardship_price_multiplier",
+            "forced_departure",
+            "disease_risk_active",
+            "updated_at",
+        ]
+    )

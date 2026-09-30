@@ -1,13 +1,16 @@
-# Game Project
+# Quest Between
 
-This repository hosts the codebase for a game developed using Python with Flask/Django and MongoDB. This project is managed by a small team and aims to deliver an engaging gaming experience with a robust backend.
+Quest Between is a browser-based, single-player campaign game built with Django and PostgreSQL. Players manage a party between simulated expeditions through travel, settlement actions, events, trade, healing, and progression.
+
+Expeditions resolve off-screen. Dungeon maps, tactical combat, and multiplayer are outside the current product scope.
 
 ## Project Overview
 
-- **Backend Framework**: Django for the server-side logic and ORM.
-- **Database**: PostgreSQL for data storage and ACID transaction safety.
-- **Deployment**: Docker Compose for local development and production runtime.
-- **Game Logic**: Deterministic simulation service with full audit logging via StepLog.
+- **Backend**: Django with a service layer for campaign rules.
+- **Database**: PostgreSQL for persistent campaign state and transactions.
+- **Interface**: Server-rendered Django templates with HTMX.
+- **Deployment**: Docker Compose for self-hosted installations.
+- **Simulation**: Seeded outcomes with campaign StepLogs for auditability.
 
 ## Getting Started
 
@@ -23,20 +26,20 @@ Ensure you have the following installed on your system:
 
 The simplest way to run the application is via Docker Compose. This automatically sets up Django, PostgreSQL, and all dependencies.
 
-1. **Clone the Repository**
+1. **Get the repository**
 
-   ```bash
-   git clone https://github.com/yourusername/yourgame.git
-   cd yourgame
-   ```
+   Check out this repository using its configured Git remote, then open the project directory.
 
 2. **Prepare Environment**
 
    ```bash
    cp .env.example .env
+   python -c "import secrets; print(secrets.token_urlsafe(50))"
    ```
 
-   Django management commands now load `.env` automatically when it is present.
+   Put the generated value in `DJANGO_SECRET_KEY` and choose a strong
+   `POSTGRES_PASSWORD`. Set `DJANGO_ALLOWED_HOSTS` to the hostnames or IP
+   addresses players will use. Keep `.env` local and untracked.
 
 3. **Start the Application Stack**
 
@@ -45,6 +48,10 @@ The simplest way to run the application is via Docker Compose. This automaticall
    ```bash
    docker compose -f docker/docker-compose.yml up -d
    ```
+
+   Put the production stack behind a TLS-terminating reverse proxy and configure
+   it to forward `X-Forwarded-Proto`. The Django production settings redirect
+   HTTP to HTTPS and use secure cookies.
 
    **Debug mode** (with debugpy on port 5679):
 
@@ -72,8 +79,10 @@ If you prefer to develop outside containers:
 
    ```bash
    python -m venv .venv
-   .venv\Scripts\activate  # On Windows
-   # or: source .venv/bin/activate  # On macOS/Linux
+   # Windows PowerShell
+   .venv\Scripts\Activate.ps1
+   # macOS/Linux
+   source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
@@ -106,6 +115,16 @@ If you prefer to develop outside containers:
 - Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) for Python code style.
 - Use meaningful commit messages to describe your changes.
 
+Check Python code with Ruff:
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
+```
+
+Run `python -m ruff format .` to apply formatting.
+
 ### Branching Strategy
 
 - Use `main` for stable code.
@@ -119,13 +138,13 @@ Tests are located in the `tests/` directory. To run tests:
 **With Docker:**
 
 ```bash
-docker compose -f docker/docker-compose.yml exec web python manage.py test
+docker compose -f docker/docker-compose.yml exec web python manage.py test campaign
 ```
 
 **Locally:**
 
 ```bash
-python manage.py test
+python manage.py test campaign
 ```
 
 For a Docker-independent host-side test run, use the dedicated SQLite-backed settings profile:

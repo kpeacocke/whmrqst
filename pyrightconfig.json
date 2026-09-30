@@ -1,12 +1,17 @@
 {
   "typeCheckingMode": "basic",
+  "venvPath": ".",
+  "venv": ".venv",
   "include": [
     "src"
   ],
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
-    "**/.*",
+    ".git",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".pytest_cache",
     "src/campaign/migrations",
     "src/game"
   ]

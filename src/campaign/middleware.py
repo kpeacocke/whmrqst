@@ -19,7 +19,11 @@ class RequestAuditMiddleware:
 
         duration_ms = (time.perf_counter() - start) * 1000
         user = getattr(request, "user", None)
-        user_id = user.pk if getattr(user, "is_authenticated", False) else None
+        user_id = (
+            getattr(user, "pk", None)
+            if getattr(user, "is_authenticated", False)
+            else None
+        )
         AUDIT_LOGGER.info(
             "request_id=%s method=%s path=%s status=%s duration_ms=%.2f user_id=%s",
             request_id,

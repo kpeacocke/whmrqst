@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("campaign", "0001_initial"),
     ]
@@ -56,15 +55,29 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="SettlementLocationDef",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("code", models.CharField(max_length=40, unique=True)),
                 ("name", models.CharField(max_length=120, unique=True)),
                 ("always_available", models.BooleanField(default=False)),
                 ("village_available", models.BooleanField(default=False)),
-                ("town_find_target", models.PositiveSmallIntegerField(blank=True, null=True)),
-                ("city_find_target", models.PositiveSmallIntegerField(blank=True, null=True)),
+                (
+                    "town_find_target",
+                    models.PositiveSmallIntegerField(blank=True, null=True),
+                ),
+                (
+                    "city_find_target",
+                    models.PositiveSmallIntegerField(blank=True, null=True),
+                ),
                 ("definition", models.JSONField(blank=True, default=dict)),
             ],
             options={

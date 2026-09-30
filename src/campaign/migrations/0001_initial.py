@@ -4,208 +4,392 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
-PARTY_MODEL = 'campaign.party'
+PARTY_MODEL = "campaign.party"
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Campaign',
+            name="Campaign",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120)),
-                ('seed', models.CharField(max_length=120, unique=True)),
-                ('current_day', models.PositiveIntegerField(default=1)),
-                ('current_week', models.PositiveIntegerField(default=1)),
-                ('is_active', models.BooleanField(default=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120)),
+                ("seed", models.CharField(max_length=120, unique=True)),
+                ("current_day", models.PositiveIntegerField(default=1)),
+                ("current_week", models.PositiveIntegerField(default=1)),
+                ("is_active", models.BooleanField(default=True)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='CatastrophicEventDef',
+            name="CatastrophicEventDef",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('weight', models.PositiveIntegerField(default=1)),
-                ('definition', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120, unique=True)),
+                ("weight", models.PositiveIntegerField(default=1)),
+                ("definition", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ContentPack',
+            name="ContentPack",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120)),
-                ('version', models.CharField(default='1.0', max_length=20)),
-                ('is_active', models.BooleanField(default=True)),
-                ('content', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120)),
+                ("version", models.CharField(default="1.0", max_length=20)),
+                ("is_active", models.BooleanField(default=True)),
+                ("content", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='HazardDef',
+            name="HazardDef",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('settlement_size', models.CharField(choices=[('village', 'Village'), ('town', 'Town'), ('city', 'City')], max_length=20)),
-                ('severity', models.PositiveSmallIntegerField(default=1)),
-                ('definition', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120, unique=True)),
+                (
+                    "settlement_size",
+                    models.CharField(
+                        choices=[
+                            ("village", "Village"),
+                            ("town", "Town"),
+                            ("city", "City"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("severity", models.PositiveSmallIntegerField(default=1)),
+                ("definition", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Hero',
+            name="Hero",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120)),
-                ('archetype', models.CharField(choices=[('warrior', 'Warrior'), ('ranger', 'Ranger'), ('mage', 'Mage'), ('priest', 'Priest')], max_length=30)),
-                ('level', models.PositiveIntegerField(default=1)),
-                ('max_health', models.PositiveIntegerField(default=10)),
-                ('current_health', models.PositiveIntegerField(default=10)),
-                ('conditions', models.JSONField(blank=True, default=list)),
-                ('stats', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120)),
+                (
+                    "archetype",
+                    models.CharField(
+                        choices=[
+                            ("warrior", "Warrior"),
+                            ("ranger", "Ranger"),
+                            ("mage", "Mage"),
+                            ("priest", "Priest"),
+                        ],
+                        max_length=30,
+                    ),
+                ),
+                ("level", models.PositiveIntegerField(default=1)),
+                ("max_health", models.PositiveIntegerField(default=10)),
+                ("current_health", models.PositiveIntegerField(default=10)),
+                ("conditions", models.JSONField(blank=True, default=list)),
+                ("stats", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ItemDef',
+            name="ItemDef",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('category', models.CharField(max_length=50)),
-                ('base_price', models.PositiveIntegerField(default=0)),
-                ('stock_value', models.PositiveIntegerField(default=1)),
-                ('definition', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120, unique=True)),
+                ("category", models.CharField(max_length=50)),
+                ("base_price", models.PositiveIntegerField(default=0)),
+                ("stock_value", models.PositiveIntegerField(default=1)),
+                ("definition", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='SettlementEventDef',
+            name="SettlementEventDef",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('weight', models.PositiveIntegerField(default=1)),
-                ('definition', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120, unique=True)),
+                ("weight", models.PositiveIntegerField(default=1)),
+                ("definition", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ShopDef',
+            name="ShopDef",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('settlement_size', models.CharField(choices=[('village', 'Village'), ('town', 'Town'), ('city', 'City')], max_length=20)),
-                ('stock_table', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120, unique=True)),
+                (
+                    "settlement_size",
+                    models.CharField(
+                        choices=[
+                            ("village", "Village"),
+                            ("town", "Town"),
+                            ("city", "City"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("stock_table", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='SkillDef',
+            name="SkillDef",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120, unique=True)),
-                ('archetype', models.CharField(max_length=30)),
-                ('description', models.TextField(blank=True)),
-                ('definition', models.JSONField(blank=True, default=dict)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120, unique=True)),
+                ("archetype", models.CharField(max_length=30)),
+                ("description", models.TextField(blank=True)),
+                ("definition", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Party',
+            name="Party",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=120)),
-                ('gold', models.PositiveIntegerField(default=0)),
-                ('supplies', models.PositiveIntegerField(default=0)),
-                ('morale', models.IntegerField(default=0)),
-                ('campaign', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='parties', to='campaign.campaign')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=120)),
+                ("gold", models.PositiveIntegerField(default=0)),
+                ("supplies", models.PositiveIntegerField(default=0)),
+                ("morale", models.IntegerField(default=0)),
+                (
+                    "campaign",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="parties",
+                        to="campaign.campaign",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='InventoryItem',
+            name="InventoryItem",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('quantity', models.PositiveIntegerField(default=1)),
-                ('item_state', models.JSONField(blank=True, default=dict)),
-                ('hero', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='inventory_items', to='campaign.hero')),
-                ('item_def', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='inventory_items', to='campaign.itemdef')),
-                ('party', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='inventory_items', to=PARTY_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("quantity", models.PositiveIntegerField(default=1)),
+                ("item_state", models.JSONField(blank=True, default=dict)),
+                (
+                    "hero",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="inventory_items",
+                        to="campaign.hero",
+                    ),
+                ),
+                (
+                    "item_def",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="inventory_items",
+                        to="campaign.itemdef",
+                    ),
+                ),
+                (
+                    "party",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="inventory_items",
+                        to=PARTY_MODEL,
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.AddField(
-            model_name='hero',
-            name='party',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='heroes', to=PARTY_MODEL),
+            model_name="hero",
+            name="party",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="heroes",
+                to=PARTY_MODEL,
+            ),
         ),
         migrations.CreateModel(
-            name='StepLog',
+            name="StepLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('step_type', models.CharField(max_length=50)),
-                ('action_type', models.CharField(max_length=50)),
-                ('rng_seed', models.CharField(max_length=200)),
-                ('dice_rolled', models.JSONField(blank=True, default=list)),
-                ('effects_applied', models.JSONField(blank=True, default=dict)),
-                ('narrative', models.TextField(blank=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('campaign', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='step_logs', to='campaign.campaign')),
-                ('hero', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='step_logs', to='campaign.hero')),
-                ('party', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='step_logs', to=PARTY_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("step_type", models.CharField(max_length=50)),
+                ("action_type", models.CharField(max_length=50)),
+                ("rng_seed", models.CharField(max_length=200)),
+                ("dice_rolled", models.JSONField(blank=True, default=list)),
+                ("effects_applied", models.JSONField(blank=True, default=dict)),
+                ("narrative", models.TextField(blank=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "campaign",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="step_logs",
+                        to="campaign.campaign",
+                    ),
+                ),
+                (
+                    "hero",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="step_logs",
+                        to="campaign.hero",
+                    ),
+                ),
+                (
+                    "party",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="step_logs",
+                        to=PARTY_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['created_at', 'id'],
+                "ordering": ["created_at", "id"],
             },
         ),
     ]

@@ -1,5 +1,6 @@
 from app.inventory import Item
 
+
 class ExpansionContent:
     def __init__(self):
         self.new_quests = []
@@ -16,6 +17,6 @@ class ExpansionContent:
     def integrate_into_game(self, game_state):
         """Integrate the expansion content into the game state."""
         for quest in self.new_quests:
-            game_state.quest_status[quest] = 'Not Started'
+            game_state.quest_status[quest] = "Not Started"
         for item in self.new_items:
             game_state.inventory.add_item(item)

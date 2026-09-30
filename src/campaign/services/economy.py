@@ -25,7 +25,9 @@ def process_shop_transaction(
     campaign = locked_party.campaign
     sequence = StepLog.objects.filter(campaign=campaign).count() + 1
     actor_key = f"party:{locked_party.pk}"
-    seed = derive_step_seed(campaign.seed, "economy", transaction_type, actor_key, sequence)
+    seed = derive_step_seed(
+        campaign.seed, "economy", transaction_type, actor_key, sequence
+    )
     rng = DeterministicRng(seed)
 
     if transaction_type == "buy":
@@ -65,7 +67,10 @@ def _buy_item(
             party,
             action_type="buy_rejected",
             seed=seed,
-            dice_rolled=[{"die": "d6", "result": roll, "context": "stock-roll"} for roll in stock_rolls],
+            dice_rolled=[
+                {"die": "d6", "result": roll, "context": "stock-roll"}
+                for roll in stock_rolls
+            ],
             effects_applied=effects,
             narrative=f"Stock check failed for {item_def.name}.",
         )
@@ -84,7 +89,10 @@ def _buy_item(
             party,
             action_type="buy_rejected",
             seed=seed,
-            dice_rolled=[{"die": "d6", "result": roll, "context": "stock-roll"} for roll in stock_rolls],
+            dice_rolled=[
+                {"die": "d6", "result": roll, "context": "stock-roll"}
+                for roll in stock_rolls
+            ],
             effects_applied=effects,
             narrative=f"Purchase failed due to low gold: {item_def.name}.",
         )
@@ -117,7 +125,10 @@ def _buy_item(
         party,
         action_type="buy",
         seed=seed,
-        dice_rolled=[{"die": "d6", "result": roll, "context": "stock-roll"} for roll in stock_rolls],
+        dice_rolled=[
+            {"die": "d6", "result": roll, "context": "stock-roll"}
+            for roll in stock_rolls
+        ],
         effects_applied=effects,
         narrative=f"Purchased {quantity}x {item_def.name} in a {settlement_size}.",
     )

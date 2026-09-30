@@ -1,4 +1,3 @@
-
 # Mock classes for Quest and QuestSystem
 class Quest:
     def __init__(self, name, objectives):
@@ -21,6 +20,7 @@ class Quest:
     def fail_quest(self):
         """Mark the quest as failed."""
         self.failed = True
+
 
 class QuestSystem:
     def __init__(self):
@@ -47,30 +47,47 @@ class QuestSystem:
 
 # Test cases for Quest Structure
 
+
 def test_quest_initialization():
     # Scenario 1: Ensure a quest is correctly initialized with objectives
-    objectives = [{"description": "Collect 10 herbs", "completed": False},
-                  {"description": "Defeat the forest monster", "completed": False}]
+    objectives = [
+        {"description": "Collect 10 herbs", "completed": False},
+        {"description": "Defeat the forest monster", "completed": False},
+    ]
     quest = Quest(name="Herbalist's Task", objectives=objectives)
-    
-    assert quest.name == "Herbalist's Task", "Quest should be initialized with the correct name."
+
+    assert quest.name == "Herbalist's Task", (
+        "Quest should be initialized with the correct name."
+    )
     assert len(quest.objectives) == 2, "Quest should have 2 objectives."
     assert not quest.completed, "Quest should not be completed at initialization."
     assert not quest.failed, "Quest should not be marked as failed at initialization."
 
+
 def test_complete_quest_objective():
     # Scenario 2: Ensure quest objectives can be completed and progress is tracked
-    objectives = [{"description": "Collect 10 herbs", "completed": False},
-                  {"description": "Defeat the forest monster", "completed": False}]
+    objectives = [
+        {"description": "Collect 10 herbs", "completed": False},
+        {"description": "Defeat the forest monster", "completed": False},
+    ]
     quest = Quest(name="Herbalist's Task", objectives=objectives)
-    
+
     quest.complete_objective(0)  # Complete the first objective
-    assert quest.objectives[0]["completed"], "First objective should be marked as completed."
-    assert not quest.completed, "Quest should not be marked as completed if not all objectives are done."
+    assert quest.objectives[0]["completed"], (
+        "First objective should be marked as completed."
+    )
+    assert not quest.completed, (
+        "Quest should not be marked as completed if not all objectives are done."
+    )
 
     quest.complete_objective(1)  # Complete the second objective
-    assert quest.objectives[1]["completed"], "Second objective should be marked as completed."
-    assert quest.completed, "Quest should be marked as completed when all objectives are done."
+    assert quest.objectives[1]["completed"], (
+        "Second objective should be marked as completed."
+    )
+    assert quest.completed, (
+        "Quest should be marked as completed when all objectives are done."
+    )
+
 
 def test_complete_quest():
     # Scenario 3: Ensure a quest can be completed and moved to completed quests
@@ -79,14 +96,21 @@ def test_complete_quest():
     quest_system = QuestSystem()
 
     quest_system.add_quest(quest)
-    assert quest in quest_system.active_quests, "Quest should be in the active quests list."
+    assert quest in quest_system.active_quests, (
+        "Quest should be in the active quests list."
+    )
 
     # Complete the objective and mark quest as completed
     quest.complete_objective(0)
     quest_system.complete_quest(quest)
 
-    assert quest not in quest_system.active_quests, "Quest should be removed from active quests after completion."
-    assert quest in quest_system.completed_quests, "Quest should be moved to completed quests."
+    assert quest not in quest_system.active_quests, (
+        "Quest should be removed from active quests after completion."
+    )
+    assert quest in quest_system.completed_quests, (
+        "Quest should be moved to completed quests."
+    )
+
 
 def test_fail_quest():
     # Scenario 4: Ensure a quest can be failed and moved to failed quests
@@ -95,25 +119,38 @@ def test_fail_quest():
     quest_system = QuestSystem()
 
     quest_system.add_quest(quest)
-    assert quest in quest_system.active_quests, "Quest should be in the active quests list."
+    assert quest in quest_system.active_quests, (
+        "Quest should be in the active quests list."
+    )
 
     # Fail the quest
     quest.fail_quest()
     quest_system.fail_quest(quest)
 
-    assert quest not in quest_system.active_quests, "Quest should be removed from active quests after failure."
-    assert quest in quest_system.failed_quests, "Quest should be moved to failed quests."
+    assert quest not in quest_system.active_quests, (
+        "Quest should be removed from active quests after failure."
+    )
+    assert quest in quest_system.failed_quests, (
+        "Quest should be moved to failed quests."
+    )
+
 
 def test_multi_stage_quest():
     # Scenario 5: Ensure multi-stage quests progress through stages properly
-    objectives = [{"description": "Collect 10 herbs", "completed": False},
-                  {"description": "Defeat the forest monster", "completed": False}]
+    objectives = [
+        {"description": "Collect 10 herbs", "completed": False},
+        {"description": "Defeat the forest monster", "completed": False},
+    ]
     quest = Quest(name="Herbalist's Task", objectives=objectives)
 
     quest.complete_objective(0)  # Complete the first stage
     assert quest.objectives[0]["completed"], "First stage should be completed."
-    assert not quest.completed, "Quest should not be fully completed after just one stage."
+    assert not quest.completed, (
+        "Quest should not be fully completed after just one stage."
+    )
 
     quest.complete_objective(1)  # Complete the second stage
     assert quest.objectives[1]["completed"], "Second stage should be completed."
-    assert quest.completed, "Quest should be marked as completed when all stages are done."
+    assert quest.completed, (
+        "Quest should be marked as completed when all stages are done."
+    )

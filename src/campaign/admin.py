@@ -99,7 +99,14 @@ class ShopDefAdmin(admin.ModelAdmin):
 
 @admin.register(SettlementLocationDef)
 class SettlementLocationDefAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "always_available", "village_available", "town_find_target", "city_find_target")
+    list_display = (
+        "name",
+        "code",
+        "always_available",
+        "village_available",
+        "town_find_target",
+        "city_find_target",
+    )
     search_fields = ("name", "code")
 
 
@@ -141,9 +148,23 @@ class InventoryItemAdmin(admin.ModelAdmin):
     list_display = ("item_def", "party", "hero", "quantity", "updated_at")
     search_fields = ("item_def__name", "party__name", "hero__name")
 
+
 @admin.register(StepLog)
 class StepLogAdmin(admin.ModelAdmin):
-    list_display = ("campaign", "party", "hero", "step_type", "action_type", "created_at")
-    search_fields = ("campaign__name", "party__name", "hero__name", "step_type", "action_type")
+    list_display = (
+        "campaign",
+        "party",
+        "hero",
+        "step_type",
+        "action_type",
+        "created_at",
+    )
+    search_fields = (
+        "campaign__name",
+        "party__name",
+        "hero__name",
+        "step_type",
+        "action_type",
+    )
     list_filter = ("step_type", "action_type")
     ordering = ("-created_at",)

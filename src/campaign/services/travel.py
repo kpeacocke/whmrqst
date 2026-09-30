@@ -33,14 +33,18 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]
             hazards_by_roll[table_roll] = hazard
 
     encumbrance_penalty = get_party_encumbrance_penalty(party)
-    pending_hazards = HAZARDS_BY_SETTLEMENT.get(settlement_size, 2) + int(encumbrance_penalty["movement_penalty"])
+    pending_hazards = HAZARDS_BY_SETTLEMENT.get(settlement_size, 2) + int(
+        encumbrance_penalty["movement_penalty"]
+    )
     resolved: list[dict[str, Any]] = []
     safety_counter = 0
 
     while pending_hazards > 0 and safety_counter < 100:
         safety_counter += 1
         sequence = StepLog.objects.filter(campaign=campaign).count() + 1
-        seed = derive_step_seed(campaign.seed, "travel", "hazard", f"party:{party.pk}", sequence)
+        seed = derive_step_seed(
+            campaign.seed, "travel", "hazard", f"party:{party.pk}", sequence
+        )
         rng = DeterministicRng(seed)
 
         tens = rng.d6()
@@ -70,14 +74,20 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]
             rng_seed=seed,
             dice_rolled=dice_rolled,
             effects_applied=effects,
-            narrative=str(cast(dict[str, Any], chosen_hazard.definition or {}).get("narrative", chosen_hazard.name)),
+            narrative=str(
+                cast(dict[str, Any], chosen_hazard.definition or {}).get(
+                    "narrative", chosen_hazard.name
+                )
+            ),
         )
-        resolved.append({
-            "hazard": chosen_hazard.name,
-            "table_roll": table_roll,
-            "effects": effects,
-            "log_id": int(log.pk),
-        })
+        resolved.append(
+            {
+                "hazard": chosen_hazard.name,
+                "table_roll": table_roll,
+                "effects": effects,
+                "log_id": int(log.pk),
+            }
+        )
 
     return {
         "settlement_size": settlement_size,
@@ -89,7 +99,9 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]
     }
 
 
-def _apply_hazard_effects(party: Party, hazard: HazardDef, rng: DeterministicRng) -> dict[str, Any]:
+def _apply_hazard_effects(
+    party: Party, hazard: HazardDef, rng: DeterministicRng
+) -> dict[str, Any]:
     definition = cast(dict[str, Any], hazard.definition or {})
     effects = cast(list[dict[str, Any]], definition.get("effects", []))
 
@@ -105,7 +117,9 @@ def _apply_hazard_effects(party: Party, hazard: HazardDef, rng: DeterministicRng
         effect_type = effect.get("type")
         min_value = int(effect.get("min", 0))
         max_value = int(effect.get("max", min_value))
-        value = rng.randint(min_value, max_value) if max_value >= min_value else min_value
+        value = (
+            rng.randint(min_value, max_value) if max_value >= min_value else min_value
+        )
 
         if effect_type == "gold_loss":
             party.gold = max(0, party.gold - value)

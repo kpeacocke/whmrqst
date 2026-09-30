@@ -29,7 +29,9 @@ class Campaign(TimeStampedModel):
 
 
 class Party(TimeStampedModel):
-    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="parties")
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="parties"
+    )
     name = models.CharField(max_length=120)
     gold = models.PositiveIntegerField(default=0)
     supplies = models.PositiveIntegerField(default=0)
@@ -139,10 +141,18 @@ class Expedition(TimeStampedModel):
         STANDARD = "standard", "Standard"
         RECKLESS = "reckless", "Reckless"
 
-    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="expeditions")
-    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="expeditions")
-    expedition_def = models.ForeignKey(ExpeditionDef, on_delete=models.PROTECT, related_name="expeditions")
-    risk_level = models.CharField(max_length=20, choices=RiskLevel.choices, default=RiskLevel.STANDARD)
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="expeditions"
+    )
+    party = models.ForeignKey(
+        Party, on_delete=models.CASCADE, related_name="expeditions"
+    )
+    expedition_def = models.ForeignKey(
+        ExpeditionDef, on_delete=models.PROTECT, related_name="expeditions"
+    )
+    risk_level = models.CharField(
+        max_length=20, choices=RiskLevel.choices, default=RiskLevel.STANDARD
+    )
     result = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
@@ -211,7 +221,9 @@ class SettlementLocationDef(TimeStampedModel):
 
 class HeroSkill(TimeStampedModel):
     hero = models.ForeignKey(Hero, on_delete=models.CASCADE, related_name="hero_skills")
-    skill_def = models.ForeignKey(SkillDef, on_delete=models.PROTECT, related_name="hero_skills")
+    skill_def = models.ForeignKey(
+        SkillDef, on_delete=models.PROTECT, related_name="hero_skills"
+    )
     source = models.CharField(max_length=60, default="training")
 
     class Meta:
@@ -222,9 +234,19 @@ class HeroSkill(TimeStampedModel):
 
 
 class InventoryItem(TimeStampedModel):
-    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="inventory_items")
-    hero = models.ForeignKey(Hero, on_delete=models.CASCADE, related_name="inventory_items", null=True, blank=True)
-    item_def = models.ForeignKey(ItemDef, on_delete=models.PROTECT, related_name="inventory_items")
+    party = models.ForeignKey(
+        Party, on_delete=models.CASCADE, related_name="inventory_items"
+    )
+    hero = models.ForeignKey(
+        Hero,
+        on_delete=models.CASCADE,
+        related_name="inventory_items",
+        null=True,
+        blank=True,
+    )
+    item_def = models.ForeignKey(
+        ItemDef, on_delete=models.PROTECT, related_name="inventory_items"
+    )
     quantity = models.PositiveIntegerField(default=1)
     item_state = models.JSONField(default=dict, blank=True)
 
@@ -233,9 +255,19 @@ class InventoryItem(TimeStampedModel):
 
 
 class StepLog(models.Model):
-    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="step_logs")
-    party = models.ForeignKey(Party, on_delete=models.SET_NULL, related_name="step_logs", null=True, blank=True)
-    hero = models.ForeignKey(Hero, on_delete=models.SET_NULL, related_name="step_logs", null=True, blank=True)
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="step_logs"
+    )
+    party = models.ForeignKey(
+        Party,
+        on_delete=models.SET_NULL,
+        related_name="step_logs",
+        null=True,
+        blank=True,
+    )
+    hero = models.ForeignKey(
+        Hero, on_delete=models.SET_NULL, related_name="step_logs", null=True, blank=True
+    )
     step_type = models.CharField(max_length=50)
     action_type = models.CharField(max_length=50)
     rng_seed = models.CharField(max_length=200)
@@ -247,7 +279,9 @@ class StepLog(models.Model):
     class Meta:
         ordering = ["created_at", "id"]
         indexes = [
-            models.Index(fields=["campaign", "created_at"], name="step_camp_created_idx"),
+            models.Index(
+                fields=["campaign", "created_at"], name="step_camp_created_idx"
+            ),
             models.Index(
                 fields=["campaign", "step_type", "action_type"],
                 name="step_camp_type_action_idx",

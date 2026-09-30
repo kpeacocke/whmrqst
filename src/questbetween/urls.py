@@ -1,9 +1,12 @@
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
+from django.views.decorators.http import require_http_methods
 
 
-def health(_request):
+@require_http_methods(["GET"])
+def health(request):
+    del request
     return JsonResponse({"status": "ok"})
 
 

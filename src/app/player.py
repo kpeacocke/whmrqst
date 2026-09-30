@@ -1,5 +1,6 @@
 from .inventory import Inventory, Item
 
+
 class Player:
     def __init__(self, player_id, health, inventory_capacity=10, max_health=None):
         self.player_id = player_id
@@ -26,7 +27,7 @@ class Player:
         return {
             "player_id": self.player_id,
             "health": self.health,
-            "inventory": [item.to_dict() for item in self.inventory.items]
+            "inventory": [item.to_dict() for item in self.inventory.items],
         }
 
     @staticmethod
@@ -38,7 +39,7 @@ class Player:
             player_id=data["player_id"],
             health=data["health"],
             inventory_capacity=inventory_capacity,
-            max_health=max_health
+            max_health=max_health,
         )
         for item_data in data["inventory"]:
             player.inventory.add_item(Item(item_data["name"], item_data["quantity"]))

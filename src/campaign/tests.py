@@ -41,14 +41,18 @@ from .services.travel import resolve_travel_hazards
 class CampaignFoundationTests(TestCase):
     def test_health_endpoint_returns_ok(self):
         response = Client().get("/health/")
+        post_response = Client().post("/health/")
 
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(response.content, {"status": "ok"})
         self.assertIn("X-Request-ID", response)
+        self.assertEqual(post_response.status_code, 405)
 
     def test_campaign_party_and_step_log_relationships(self):
         campaign = Campaign.objects.create(name="Southern March", seed="seed-001")
-        party = Party.objects.create(campaign=campaign, name="Iron Company", gold=25, supplies=8)
+        party = Party.objects.create(
+            campaign=campaign, name="Iron Company", gold=25, supplies=8
+        )
         hero = Hero.objects.create(
             party=party,
             name="Mira",
@@ -76,8 +80,12 @@ class CampaignFoundationTests(TestCase):
 class PhaseThreeServiceTests(TestCase):
     def setUp(self):
         self.client = Client()
-        self.campaign = Campaign.objects.create(name="Northern Roads", seed="phase3-seed")
-        self.party = Party.objects.create(campaign=self.campaign, name="Roadwardens", gold=40, supplies=10, morale=0)
+        self.campaign = Campaign.objects.create(
+            name="Northern Roads", seed="phase3-seed"
+        )
+        self.party = Party.objects.create(
+            campaign=self.campaign, name="Roadwardens", gold=40, supplies=10, morale=0
+        )
         self.hero = Hero.objects.create(
             party=self.party,
             name="Helga",
@@ -94,9 +102,13 @@ class PhaseThreeServiceTests(TestCase):
         self.assertEqual(result["settlement_size"], "village")
         self.assertGreaterEqual(len(result["resolved_hazards"]), 2)
         self.assertTrue(
-            StepLog.objects.filter(campaign=self.campaign, step_type="travel", action_type="hazard").exists()
+            StepLog.objects.filter(
+                campaign=self.campaign, step_type="travel", action_type="hazard"
+            ).exists()
         )
-        first_log = StepLog.objects.filter(campaign=self.campaign, step_type="travel", action_type="hazard").first()
+        first_log = StepLog.objects.filter(
+            campaign=self.campaign, step_type="travel", action_type="hazard"
+        ).first()
         if first_log is None:
             self.fail("Expected a travel step log to be created")
         self.assertTrue(any(die.get("die") == "d66" for die in first_log.dice_rolled))
@@ -107,7 +119,36 @@ class PhaseThreeServiceTests(TestCase):
         self.assertIn("action_log_id", outcome)
         self.assertIn("settlement_event", outcome)
         self.assertTrue(
-            StepLog.objects.filter(campaign=self.campaign, step_type="settlement", action_type="rest").exists()
+            StepLog.objects.filter(
+                campaign=self.campaign, step_type="settlement", action_type="rest"
+            ).exists()
+        )
+
+    def test_party_heroes_act_once_before_day_advances(self):
+        second_hero = Hero.objects.create(
+            party=self.party,
+            name="Tomas",
+            archetype=Hero.Archetype.RANGER,
+        )
+
+        first = resolve_settlement_action(self.hero, "rest")
+        self.campaign.refresh_from_db()
+        self.assertEqual(first["current_day"], 1)
+        self.assertEqual(self.campaign.current_day, 1)
+
+        with self.assertRaisesMessage(ValueError, "already taken an action today"):
+            resolve_settlement_action(self.hero, "heal")
+
+        second = resolve_settlement_action(second_hero, "rest")
+        self.campaign.refresh_from_db()
+        self.assertEqual(second["current_day"], 2)
+        self.assertEqual(self.campaign.current_day, 2)
+        self.assertTrue(
+            StepLog.objects.filter(
+                campaign=self.campaign,
+                action_type="day_advance",
+                effects_applied__completed_day=1,
+            ).exists()
         )
 
     def test_training_action_builds_progress_and_levels_up(self):
@@ -129,7 +170,9 @@ class PhaseThreeServiceTests(TestCase):
 class EconomyServiceTests(TestCase):
     def setUp(self):
         self.campaign = Campaign.objects.create(name="Market Roads", seed="phase4-seed")
-        self.party = Party.objects.create(campaign=self.campaign, name="Mercers", gold=800, supplies=8, morale=1)
+        self.party = Party.objects.create(
+            campaign=self.campaign, name="Mercers", gold=800, supplies=8, morale=1
+        )
         call_command("seed_warhammer_content")
         self.item = ItemDef.objects.get(name="WHQ Rope")
 
@@ -146,13 +189,19 @@ class EconomyServiceTests(TestCase):
         )
 
         self.party.refresh_from_db()
-        inventory = InventoryItem.objects.get(party=self.party, hero=None, item_def=self.item)
-        step = StepLog.objects.filter(campaign=self.campaign, step_type="economy", action_type="buy").latest("id")
+        inventory = InventoryItem.objects.get(
+            party=self.party, hero=None, item_def=self.item
+        )
+        step = StepLog.objects.filter(
+            campaign=self.campaign, step_type="economy", action_type="buy"
+        ).latest("id")
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["unit_price"], self.item.base_price * 4)
         self.assertEqual(inventory.quantity, 1)
-        self.assertTrue(any(die.get("context") == "stock-roll" for die in step.dice_rolled))
+        self.assertTrue(
+            any(die.get("context") == "stock-roll" for die in step.dice_rolled)
+        )
 
     def test_buy_rejected_when_insufficient_gold(self):
         self.party.gold = 1
@@ -169,10 +218,16 @@ class EconomyServiceTests(TestCase):
         self.party.refresh_from_db()
         self.assertEqual(result["status"], "rejected")
         self.assertEqual(result["reason"], "insufficient_gold")
-        self.assertFalse(InventoryItem.objects.filter(party=self.party, item_def__name="WHQ Chainmail").exists())
+        self.assertFalse(
+            InventoryItem.objects.filter(
+                party=self.party, item_def__name="WHQ Chainmail"
+            ).exists()
+        )
 
     def test_sell_transaction_increases_gold_and_reduces_inventory(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item, quantity=3)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item, quantity=3
+        )
         starting_gold = self.party.gold
 
         result = process_shop_transaction(
@@ -184,10 +239,14 @@ class EconomyServiceTests(TestCase):
         )
 
         self.party.refresh_from_db()
-        inventory = InventoryItem.objects.get(party=self.party, hero=None, item_def=self.item)
+        inventory = InventoryItem.objects.get(
+            party=self.party, hero=None, item_def=self.item
+        )
         self.assertEqual(result["status"], "success")
         self.assertEqual(inventory.quantity, 1)
-        self.assertEqual(self.party.gold, starting_gold + max(1, self.item.base_price // 2) * 2)
+        self.assertEqual(
+            self.party.gold, starting_gold + max(1, self.item.base_price // 2) * 2
+        )
 
 
 class GmAccessTests(TestCase):
@@ -198,9 +257,21 @@ class GmAccessTests(TestCase):
         self.assertEqual(SettlementEventDef.objects.count(), 36)
         self.assertEqual(CatastrophicEventDef.objects.count(), 8)
         self.assertEqual(SettlementLocationDef.objects.count(), 7)
-        self.assertEqual(ItemDef.objects.filter(definition__source="whq_roleplay_book").count(), 10)
-        self.assertEqual(ExpeditionDef.objects.filter(definition__source="whq_roleplay_book").count(), 4)
-        self.assertEqual(CraftingRecipeDef.objects.filter(definition__source="whq_roleplay_book").count(), 2)
+        self.assertEqual(
+            ItemDef.objects.filter(definition__source="whq_roleplay_book").count(), 10
+        )
+        self.assertEqual(
+            ExpeditionDef.objects.filter(
+                definition__source="whq_roleplay_book"
+            ).count(),
+            4,
+        )
+        self.assertEqual(
+            CraftingRecipeDef.objects.filter(
+                definition__source="whq_roleplay_book"
+            ).count(),
+            2,
+        )
 
     def test_gm_console_requires_staff_login(self):
         response = self.client.get("/gm/")
@@ -208,7 +279,9 @@ class GmAccessTests(TestCase):
 
     def test_staff_user_can_access_gm_console(self):
         user_model = get_user_model()
-        user = user_model.objects.create(username=self.id(), is_staff=True, is_active=True)
+        user = user_model.objects.create(
+            username=self.id(), is_staff=True, is_active=True
+        )
         self.client.force_login(user)
 
         response = self.client.get("/gm/")
@@ -217,10 +290,14 @@ class GmAccessTests(TestCase):
     def test_staff_user_can_filter_gm_console_by_table_roll(self):
         call_command("seed_warhammer_content")
         user_model = get_user_model()
-        user = user_model.objects.create(username=self.id() + "-2", is_staff=True, is_active=True)
+        user = user_model.objects.create(
+            username=self.id() + "-2", is_staff=True, is_active=True
+        )
         self.client.force_login(user)
 
-        response = self.client.get("/gm/", {"source": "whq_roleplay_book", "settlement_roll": "35"})
+        response = self.client.get(
+            "/gm/", {"source": "whq_roleplay_book", "settlement_roll": "35"}
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "WHQ 35 Duel")
@@ -252,12 +329,15 @@ class SkillSystemTests(TestCase):
         call_command("seed_warhammer_content")
 
     def test_seed_command_creates_eight_skill_defs(self):
-        self.assertEqual(SkillDef.objects.filter(definition__source="whq_roleplay_book").count(), 8)
+        self.assertEqual(
+            SkillDef.objects.filter(definition__source="whq_roleplay_book").count(), 8
+        )
 
     def test_seed_command_covers_all_four_archetypes(self):
         archetypes_seeded = set(
-            SkillDef.objects.filter(definition__source="whq_roleplay_book")
-            .values_list("archetype", flat=True)
+            SkillDef.objects.filter(definition__source="whq_roleplay_book").values_list(
+                "archetype", flat=True
+            )
         )
         self.assertEqual(archetypes_seeded, {"warrior", "ranger", "mage", "priest"})
 
@@ -267,12 +347,17 @@ class SkillSystemTests(TestCase):
 
         # two training sessions should level up a level-1 hero (threshold = 2)
         resolve_settlement_action(self.warrior, "train", "town")
+        resolve_settlement_action(self.mage, "rest", "town")
         resolve_settlement_action(self.warrior, "train", "town")
 
         self.warrior.refresh_from_db()
         self.assertEqual(self.warrior.level, 2)
         self.assertEqual(HeroSkill.objects.filter(hero=self.warrior).count(), 1)
-        learned_skill = HeroSkill.objects.select_related("skill_def").filter(hero=self.warrior).first()
+        learned_skill = (
+            HeroSkill.objects.select_related("skill_def")
+            .filter(hero=self.warrior)
+            .first()
+        )
         if learned_skill is None:
             self.fail("Expected a learned skill after levelling up")
         learned = learned_skill.skill_def
@@ -312,14 +397,20 @@ class SkillSystemTests(TestCase):
         skill = SkillDef.objects.filter(archetype="warrior").first()
         HeroSkill.objects.create(hero=self.warrior, skill_def=skill, source="training")
         with self.assertRaises(Exception):
-            HeroSkill.objects.create(hero=self.warrior, skill_def=skill, source="training")
+            HeroSkill.objects.create(
+                hero=self.warrior, skill_def=skill, source="training"
+            )
 
 
 class ExpeditionServiceTests(TestCase):
     def setUp(self):
         self.client = Client()
-        self.campaign = Campaign.objects.create(name="Expedition March", seed="expedition-seed")
-        self.party = Party.objects.create(campaign=self.campaign, name="Blazeward", gold=20, supplies=10, morale=0)
+        self.campaign = Campaign.objects.create(
+            name="Expedition March", seed="expedition-seed"
+        )
+        self.party = Party.objects.create(
+            campaign=self.campaign, name="Blazeward", gold=20, supplies=10, morale=0
+        )
         self.hero_1 = Hero.objects.create(
             party=self.party,
             name="Rurik",
@@ -370,21 +461,33 @@ class ExpeditionServiceTests(TestCase):
         )
 
     def test_expedition_resolution_creates_log_and_record(self):
-        result = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
+        result = resolve_expedition(
+            self.party, self.expedition_def, Expedition.RiskLevel.STANDARD
+        )
 
         self.party.refresh_from_db()
         self.assertIn("expedition_id", result)
         self.assertTrue(
-            StepLog.objects.filter(campaign=self.campaign, step_type="expedition", action_type="run").exists()
+            StepLog.objects.filter(
+                campaign=self.campaign, step_type="expedition", action_type="run"
+            ).exists()
         )
-        self.assertTrue(Expedition.objects.filter(id=result["expedition_id"], party=self.party).exists())
+        self.assertTrue(
+            Expedition.objects.filter(
+                id=result["expedition_id"], party=self.party
+            ).exists()
+        )
 
     def test_expedition_is_deterministic_for_same_seed_and_state(self):
-        first = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
+        first = resolve_expedition(
+            self.party, self.expedition_def, Expedition.RiskLevel.STANDARD
+        )
 
         # Reset expedition side effects so the next run has the exact same state and sequence.
         Expedition.objects.filter(campaign=self.campaign).delete()
-        StepLog.objects.filter(campaign=self.campaign, step_type="expedition", action_type="run").delete()
+        StepLog.objects.filter(
+            campaign=self.campaign, step_type="expedition", action_type="run"
+        ).delete()
         self.party.gold = 20
         self.party.supplies = 10
         self.party.morale = 0
@@ -394,15 +497,33 @@ class ExpeditionServiceTests(TestCase):
         self.hero_1.alive = True
         self.hero_1.conditions = []
         self.hero_1.stats = {}
-        self.hero_1.save(update_fields=["current_health", "alive", "conditions", "stats", "updated_at"])
+        self.hero_1.save(
+            update_fields=[
+                "current_health",
+                "alive",
+                "conditions",
+                "stats",
+                "updated_at",
+            ]
+        )
         self.hero_2.current_health = 10
         self.hero_2.save(update_fields=["current_health", "updated_at"])
         self.hero_2.alive = True
         self.hero_2.conditions = []
         self.hero_2.stats = {}
-        self.hero_2.save(update_fields=["current_health", "alive", "conditions", "stats", "updated_at"])
+        self.hero_2.save(
+            update_fields=[
+                "current_health",
+                "alive",
+                "conditions",
+                "stats",
+                "updated_at",
+            ]
+        )
 
-        second = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
+        second = resolve_expedition(
+            self.party, self.expedition_def, Expedition.RiskLevel.STANDARD
+        )
 
         self.assertEqual(first["success"], second["success"])
         self.assertEqual(first["party_gold_delta"], second["party_gold_delta"])
@@ -413,7 +534,10 @@ class ExpeditionServiceTests(TestCase):
     def test_expedition_view_endpoint_runs_and_redirects(self):
         response = self.client.post(
             f"/campaign/{self.campaign.pk}/expedition/",
-            {"expedition_def": self.expedition_def.pk, "risk_level": Expedition.RiskLevel.STANDARD},
+            {
+                "expedition_def": self.expedition_def.pk,
+                "risk_level": Expedition.RiskLevel.STANDARD,
+            },
         )
 
         self.assertEqual(response.status_code, 302)
@@ -423,25 +547,36 @@ class ExpeditionServiceTests(TestCase):
         self.hero_1.current_health = 1
         self.hero_1.save(update_fields=["current_health", "updated_at"])
 
-        result = resolve_expedition(self.party, self.guaranteed_injury_expedition, Expedition.RiskLevel.RECKLESS)
+        result = resolve_expedition(
+            self.party, self.guaranteed_injury_expedition, Expedition.RiskLevel.RECKLESS
+        )
 
         self.hero_1.refresh_from_db()
 
         self.assertFalse(self.hero_1.alive)
         self.assertIn("dead", self.hero_1.conditions)
-        self.assertTrue(any(entry["hero"] == self.hero_1.name for entry in result["deaths"]))
+        self.assertTrue(
+            any(entry["hero"] == self.hero_1.name for entry in result["deaths"])
+        )
 
     def test_expedition_injured_hero_gains_condition(self):
         self.hero_1.current_health = 3
         self.hero_1.save(update_fields=["current_health", "updated_at"])
 
-        result = resolve_expedition(self.party, self.guaranteed_injury_expedition, Expedition.RiskLevel.RECKLESS)
+        result = resolve_expedition(
+            self.party, self.guaranteed_injury_expedition, Expedition.RiskLevel.RECKLESS
+        )
 
         self.hero_1.refresh_from_db()
 
         self.assertTrue(self.hero_1.alive)
         self.assertIn("injured", self.hero_1.conditions)
-        self.assertTrue(any(entry["hero"] == self.hero_1.name for entry in result["conditions_gained"]))
+        self.assertTrue(
+            any(
+                entry["hero"] == self.hero_1.name
+                for entry in result["conditions_gained"]
+            )
+        )
 
     def test_expedition_success_drops_loot_item(self):
         self.hero_1.level = 10
@@ -449,9 +584,15 @@ class ExpeditionServiceTests(TestCase):
         self.hero_1.save(update_fields=["level", "updated_at"])
         self.hero_2.save(update_fields=["level", "updated_at"])
 
-        result = resolve_expedition(self.party, self.guaranteed_success_expedition, Expedition.RiskLevel.STANDARD)
+        result = resolve_expedition(
+            self.party,
+            self.guaranteed_success_expedition,
+            Expedition.RiskLevel.STANDARD,
+        )
 
-        inventory_item = InventoryItem.objects.get(party=self.party, hero=None, item_def__name="WHQ Rope")
+        inventory_item = InventoryItem.objects.get(
+            party=self.party, hero=None, item_def__name="WHQ Rope"
+        )
 
         self.assertTrue(result["success"])
         self.assertEqual(result["loot"], [{"item_name": "WHQ Rope", "quantity": 1}])
@@ -463,7 +604,11 @@ class ExpeditionServiceTests(TestCase):
         self.hero_1.save(update_fields=["level", "updated_at"])
         self.hero_2.save(update_fields=["level", "updated_at"])
 
-        resolve_expedition(self.party, self.guaranteed_success_expedition, Expedition.RiskLevel.STANDARD)
+        resolve_expedition(
+            self.party,
+            self.guaranteed_success_expedition,
+            Expedition.RiskLevel.STANDARD,
+        )
 
         self.hero_1.refresh_from_db()
         self.hero_2.refresh_from_db()
@@ -476,10 +621,15 @@ class ExpeditionServiceTests(TestCase):
 # Model __str__ coverage
 # ---------------------------------------------------------------------------
 
+
 class ModelStrTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Str Campaign", seed="str-seed-001")
-        self.party = Party.objects.create(campaign=self.campaign, name="Str Party", gold=10, supplies=5, morale=0)
+        self.campaign = Campaign.objects.create(
+            name="Str Campaign", seed="str-seed-001"
+        )
+        self.party = Party.objects.create(
+            campaign=self.campaign, name="Str Party", gold=10, supplies=5, morale=0
+        )
         self.hero = Hero.objects.create(
             party=self.party,
             name="Str Hero",
@@ -503,7 +653,9 @@ class ModelStrTests(TestCase):
         self.assertEqual(str(cp), "Str Pack v2.0")
 
     def test_item_def_str(self):
-        item = ItemDef.objects.create(name="Str Sword", category="weapon", base_price=10, stock_value=2)
+        item = ItemDef.objects.create(
+            name="Str Sword", category="weapon", base_price=10, stock_value=2
+        )
         self.assertEqual(str(item), "Str Sword")
 
     def test_skill_def_str(self):
@@ -511,7 +663,9 @@ class ModelStrTests(TestCase):
         self.assertEqual(str(skill), "Str Skill")
 
     def test_expedition_def_str(self):
-        exp_def = ExpeditionDef.objects.create(code="str-exp-def", name="Str Expedition Def")
+        exp_def = ExpeditionDef.objects.create(
+            code="str-exp-def", name="Str Expedition Def"
+        )
         self.assertEqual(str(exp_def), "Str Expedition Def")
 
     def test_expedition_str(self):
@@ -526,42 +680,60 @@ class ModelStrTests(TestCase):
         self.assertIn("Str Expedition", str(exp))
 
     def test_hazard_def_str(self):
-        hazard = HazardDef.objects.create(name="Str Hazard", settlement_size="village", severity=1, definition={})
+        hazard = HazardDef.objects.create(
+            name="Str Hazard", settlement_size="village", severity=1, definition={}
+        )
         self.assertEqual(str(hazard), "Str Hazard")
 
     def test_settlement_event_def_str(self):
-        event = SettlementEventDef.objects.create(name="Str Settlement Event", weight=1, definition={})
+        event = SettlementEventDef.objects.create(
+            name="Str Settlement Event", weight=1, definition={}
+        )
         self.assertEqual(str(event), "Str Settlement Event")
 
     def test_catastrophic_event_def_str(self):
-        event = CatastrophicEventDef.objects.create(name="Str Catastrophe", weight=1, definition={})
+        event = CatastrophicEventDef.objects.create(
+            name="Str Catastrophe", weight=1, definition={}
+        )
         self.assertEqual(str(event), "Str Catastrophe")
 
     def test_shop_def_str(self):
-        shop = ShopDef.objects.create(name="Str Shop", settlement_size="town", stock_table={})
+        shop = ShopDef.objects.create(
+            name="Str Shop", settlement_size="town", stock_table={}
+        )
         self.assertEqual(str(shop), "Str Shop")
 
     def test_settlement_location_def_str(self):
         loc = SettlementLocationDef.objects.create(
-            code="str-loc", name="Str Location", always_available=False, village_available=False
+            code="str-loc",
+            name="Str Location",
+            always_available=False,
+            village_available=False,
         )
         self.assertEqual(str(loc), "Str Location")
 
     def test_hero_skill_str(self):
         skill = SkillDef.objects.create(name="Str Hero Skill", archetype="warrior")
-        hs = HeroSkill.objects.create(hero=self.hero, skill_def=skill, source="training")
+        hs = HeroSkill.objects.create(
+            hero=self.hero, skill_def=skill, source="training"
+        )
         self.assertIn("Str Hero", str(hs))
         self.assertIn("Str Hero Skill", str(hs))
 
     def test_inventory_item_str(self):
-        item = ItemDef.objects.create(name="Str Inv Item", category="misc", base_price=5, stock_value=1)
-        inv = InventoryItem.objects.create(party=self.party, hero=None, item_def=item, quantity=3)
+        item = ItemDef.objects.create(
+            name="Str Inv Item", category="misc", base_price=5, stock_value=1
+        )
+        inv = InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=item, quantity=3
+        )
         self.assertEqual(str(inv), "Str Inv Item x3")
 
 
 # ---------------------------------------------------------------------------
 # RNG edge cases
 # ---------------------------------------------------------------------------
+
 
 class RngEdgeCaseTests(TestCase):
     def test_choice_selects_an_item(self):
@@ -593,9 +765,12 @@ class RngEdgeCaseTests(TestCase):
 # Travel edge cases
 # ---------------------------------------------------------------------------
 
+
 class TravelEdgeCaseTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Travel Edge", seed="travel-edge-seed")
+        self.campaign = Campaign.objects.create(
+            name="Travel Edge", seed="travel-edge-seed"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Roadwalkers", gold=50, supplies=10, morale=0
         )
@@ -667,9 +842,12 @@ class TravelEdgeCaseTests(TestCase):
 # Expedition edge cases
 # ---------------------------------------------------------------------------
 
+
 class ExpeditionEdgeCaseTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Expedition Edge", seed="exp-edge-seed")
+        self.campaign = Campaign.objects.create(
+            name="Expedition Edge", seed="exp-edge-seed"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Edgewalkers", gold=50, supplies=10, morale=0
         )
@@ -678,7 +856,9 @@ class ExpeditionEdgeCaseTests(TestCase):
 
     def test_resolve_expedition_raises_with_no_heroes(self):
         with self.assertRaises(ValueError):
-            resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
+            resolve_expedition(
+                self.party, self.expedition_def, Expedition.RiskLevel.STANDARD
+            )
 
     def test_resolve_expedition_raises_with_all_dead_heroes(self):
         Hero.objects.create(
@@ -691,47 +871,78 @@ class ExpeditionEdgeCaseTests(TestCase):
             alive=False,
         )
         with self.assertRaises(ValueError):
-            resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
+            resolve_expedition(
+                self.party, self.expedition_def, Expedition.RiskLevel.STANDARD
+            )
 
     def test_resolve_expedition_cautious_has_lower_supply_cost(self):
         Hero.objects.create(
-            party=self.party, name="Careful", archetype=Hero.Archetype.WARRIOR,
-            level=5, max_health=15, current_health=15,
+            party=self.party,
+            name="Careful",
+            archetype=Hero.Archetype.WARRIOR,
+            level=5,
+            max_health=15,
+            current_health=15,
         )
         starting_supplies = self.party.supplies
-        resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.CAUTIOUS)
+        resolve_expedition(
+            self.party, self.expedition_def, Expedition.RiskLevel.CAUTIOUS
+        )
         self.party.refresh_from_db()
-        self.assertLessEqual(starting_supplies - self.party.supplies, self.expedition_def.base_supply_cost)
+        self.assertLessEqual(
+            starting_supplies - self.party.supplies,
+            self.expedition_def.base_supply_cost,
+        )
 
     def test_resolve_expedition_empty_loot_table_returns_no_loot(self):
         Hero.objects.create(
-            party=self.party, name="NoLoot", archetype=Hero.Archetype.WARRIOR,
-            level=20, max_health=50, current_health=50,
+            party=self.party,
+            name="NoLoot",
+            archetype=Hero.Archetype.WARRIOR,
+            level=20,
+            max_health=50,
+            current_health=50,
         )
         no_loot_def = ExpeditionDef.objects.create(
-            code="no-loot-run", name="No Loot Run",
-            base_reward_min=10, base_reward_max=10,
-            base_supply_cost=1, base_injury_risk=1, difficulty=1,
+            code="no-loot-run",
+            name="No Loot Run",
+            base_reward_min=10,
+            base_reward_max=10,
+            base_supply_cost=1,
+            base_injury_risk=1,
+            difficulty=1,
             definition={"source": "test_suite"},
         )
-        result = resolve_expedition(self.party, no_loot_def, Expedition.RiskLevel.STANDARD)
+        result = resolve_expedition(
+            self.party, no_loot_def, Expedition.RiskLevel.STANDARD
+        )
         self.assertEqual(result["loot"], [])
 
     def test_resolve_expedition_unknown_loot_item_returns_no_loot(self):
         Hero.objects.create(
-            party=self.party, name="GhostLoot", archetype=Hero.Archetype.WARRIOR,
-            level=20, max_health=50, current_health=50,
+            party=self.party,
+            name="GhostLoot",
+            archetype=Hero.Archetype.WARRIOR,
+            level=20,
+            max_health=50,
+            current_health=50,
         )
         ghost_def = ExpeditionDef.objects.create(
-            code="ghost-loot-run", name="Ghost Loot Run",
-            base_reward_min=10, base_reward_max=10,
-            base_supply_cost=1, base_injury_risk=1, difficulty=1,
+            code="ghost-loot-run",
+            name="Ghost Loot Run",
+            base_reward_min=10,
+            base_reward_max=10,
+            base_supply_cost=1,
+            base_injury_risk=1,
+            difficulty=1,
             definition={
                 "source": "test_suite",
                 "loot_table": [{"item_name": "Nonexistent Item XYZ", "weight": 1}],
             },
         )
-        result = resolve_expedition(self.party, ghost_def, Expedition.RiskLevel.STANDARD)
+        result = resolve_expedition(
+            self.party, ghost_def, Expedition.RiskLevel.STANDARD
+        )
         self.assertEqual(result["loot"], [])
 
     def test_resolve_expedition_applies_encumbrance_injury_penalty(self):
@@ -757,22 +968,34 @@ class ExpeditionEdgeCaseTests(TestCase):
             quantity=2,
         )
 
-        result = resolve_expedition(self.party, self.expedition_def, Expedition.RiskLevel.STANDARD)
-        step = StepLog.objects.filter(campaign=self.campaign, step_type="expedition", action_type="run").latest("id")
-        injury_checks = [roll for roll in step.dice_rolled if roll.get("context") == "injury-check"]
+        result = resolve_expedition(
+            self.party, self.expedition_def, Expedition.RiskLevel.STANDARD
+        )
+        step = StepLog.objects.filter(
+            campaign=self.campaign, step_type="expedition", action_type="run"
+        ).latest("id")
+        injury_checks = [
+            roll for roll in step.dice_rolled if roll.get("context") == "injury-check"
+        ]
 
         self.assertEqual(result["encumbrance_penalty"]["agility_penalty"], 1)
         self.assertTrue(injury_checks)
-        self.assertEqual(injury_checks[0]["target"], max(2, int(self.expedition_def.base_injury_risk) + 1))
+        self.assertEqual(
+            injury_checks[0]["target"],
+            max(2, int(self.expedition_def.base_injury_risk) + 1),
+        )
 
 
 # ---------------------------------------------------------------------------
 # Economy edge cases
 # ---------------------------------------------------------------------------
 
+
 class EconomyEdgeCaseTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Economy Edge", seed="econ-edge-seed")
+        self.campaign = Campaign.objects.create(
+            name="Economy Edge", seed="econ-edge-seed"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Edge Traders", gold=1000, supplies=5, morale=0
         )
@@ -816,7 +1039,9 @@ class EconomyEdgeCaseTests(TestCase):
         self.assertEqual(result["reason"], "insufficient_inventory")
 
     def test_sell_partial_reduces_inventory_without_deleting_row(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item, quantity=5)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item, quantity=5
+        )
         result = process_shop_transaction(
             party=self.party,
             settlement_size="town",
@@ -829,7 +1054,9 @@ class EconomyEdgeCaseTests(TestCase):
         self.assertEqual(inv.quantity, 2)
 
     def test_sell_all_items_deletes_inventory_row(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item, quantity=2)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item, quantity=2
+        )
         result = process_shop_transaction(
             party=self.party,
             settlement_size="town",
@@ -839,7 +1066,9 @@ class EconomyEdgeCaseTests(TestCase):
         )
         self.assertEqual(result["status"], "success")
         self.assertFalse(
-            InventoryItem.objects.filter(party=self.party, hero=None, item_def=self.item).exists()
+            InventoryItem.objects.filter(
+                party=self.party, hero=None, item_def=self.item
+            ).exists()
         )
 
 
@@ -847,23 +1076,38 @@ class EconomyEdgeCaseTests(TestCase):
 # Location service coverage
 # ---------------------------------------------------------------------------
 
+
 class LocationServiceTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Location Tests", seed="location-test-seed")
+        self.campaign = Campaign.objects.create(
+            name="Location Tests", seed="location-test-seed"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Seekers", gold=200, supplies=5, morale=0
         )
         self.warrior = Hero.objects.create(
-            party=self.party, name="Bork",
-            archetype=Hero.Archetype.WARRIOR, level=1, max_health=10, current_health=10,
+            party=self.party,
+            name="Bork",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
         )
         self.mage = Hero.objects.create(
-            party=self.party, name="Zyla",
-            archetype=Hero.Archetype.MAGE, level=1, max_health=8, current_health=8,
+            party=self.party,
+            name="Zyla",
+            archetype=Hero.Archetype.MAGE,
+            level=1,
+            max_health=8,
+            current_health=8,
         )
         self.ranger = Hero.objects.create(
-            party=self.party, name="Thea",
-            archetype=Hero.Archetype.RANGER, level=1, max_health=9, current_health=9,
+            party=self.party,
+            name="Thea",
+            archetype=Hero.Archetype.RANGER,
+            level=1,
+            max_health=9,
+            current_health=9,
         )
         call_command("seed_warhammer_content")
 
@@ -873,7 +1117,7 @@ class LocationServiceTests(TestCase):
 
         SettlementLocationDef.objects.all().delete()
         rng = DeterministicRng("test")
-        location, _dice = resolve_location_access("village", rng)
+        location, _ = resolve_location_access("village", rng)
         self.assertIsNone(location)
 
     def test_resolve_location_access_town_includes_always_available(self):
@@ -905,7 +1149,7 @@ class LocationServiceTests(TestCase):
         rng = DeterministicRng("dedupe-seed")
         # Two d6 rolls per candidate; return 1 for deterministic successful finds.
         with patch.object(rng, "d6", return_value=1):
-            location, _dice = resolve_location_access("town", rng)
+            location, _ = resolve_location_access("town", rng)
 
         self.assertIsNotNone(location)
 
@@ -926,7 +1170,7 @@ class LocationServiceTests(TestCase):
         self.party.gold = 100
         self.party.save(update_fields=["gold", "updated_at"])
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.warrior, self.party, temple, rng)
+        effects, _ = apply_location_effects(self.warrior, self.party, temple, rng)
         self.warrior.refresh_from_db()
         self.assertEqual(self.warrior.temple_reroll_charges, 1)
         self.assertIsNone(effects["rejected"])
@@ -939,7 +1183,7 @@ class LocationServiceTests(TestCase):
         self.party.gold = 10
         self.party.save(update_fields=["gold", "updated_at"])
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.warrior, self.party, temple, rng)
+        effects, _ = apply_location_effects(self.warrior, self.party, temple, rng)
         self.assertEqual(effects["rejected"], "insufficient_gold")
 
     def test_apply_location_gambling_house_win(self):
@@ -951,7 +1195,7 @@ class LocationServiceTests(TestCase):
         self.party.save(update_fields=["gold", "updated_at"])
         rng = DeterministicRng("test")
         with patch.object(rng._random, "randint", return_value=5):
-            effects, _dice = apply_location_effects(self.warrior, self.party, gambling, rng)
+            effects, _ = apply_location_effects(self.warrior, self.party, gambling, rng)
         self.assertGreater(effects["party_gold_delta"], 0)
 
     def test_apply_location_gambling_house_break_even(self):
@@ -963,7 +1207,7 @@ class LocationServiceTests(TestCase):
         self.party.save(update_fields=["gold", "updated_at"])
         rng = DeterministicRng("test")
         with patch.object(rng._random, "randint", return_value=4):
-            effects, _dice = apply_location_effects(self.warrior, self.party, gambling, rng)
+            effects, _ = apply_location_effects(self.warrior, self.party, gambling, rng)
         self.assertEqual(effects["party_gold_delta"], 0)
 
     def test_apply_location_gambling_house_lose(self):
@@ -975,7 +1219,7 @@ class LocationServiceTests(TestCase):
         self.party.save(update_fields=["gold", "updated_at"])
         rng = DeterministicRng("test")
         with patch.object(rng._random, "randint", return_value=2):
-            effects, _dice = apply_location_effects(self.warrior, self.party, gambling, rng)
+            effects, _ = apply_location_effects(self.warrior, self.party, gambling, rng)
         self.assertLess(effects["party_gold_delta"], 0)
 
     def test_apply_location_gambling_house_insufficient_gold(self):
@@ -986,7 +1230,7 @@ class LocationServiceTests(TestCase):
         self.party.gold = 0
         self.party.save(update_fields=["gold", "updated_at"])
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.warrior, self.party, gambling, rng)
+        effects, _ = apply_location_effects(self.warrior, self.party, gambling, rng)
         self.assertEqual(effects["rejected"], "insufficient_gold")
 
     def test_apply_location_alchemist_returns_narrative(self):
@@ -995,7 +1239,7 @@ class LocationServiceTests(TestCase):
 
         alchemist = SettlementLocationDef.objects.get(code="alchemist")
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.warrior, self.party, alchemist, rng)
+        effects, _ = apply_location_effects(self.warrior, self.party, alchemist, rng)
         self.assertIn("Alchemist", effects["narrative"])
 
     def test_apply_location_wizards_guild_grants_mage_skill(self):
@@ -1004,7 +1248,7 @@ class LocationServiceTests(TestCase):
 
         guild = SettlementLocationDef.objects.get(code="wizards_guild")
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.mage, self.party, guild, rng)
+        effects, _ = apply_location_effects(self.mage, self.party, guild, rng)
         self.assertIsNotNone(effects["skill_learned"])
 
     def test_apply_location_elf_quarter_grants_ranger_skill(self):
@@ -1013,7 +1257,7 @@ class LocationServiceTests(TestCase):
 
         elf = SettlementLocationDef.objects.get(code="elf_quarter")
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.ranger, self.party, elf, rng)
+        effects, _ = apply_location_effects(self.ranger, self.party, elf, rng)
         self.assertIsNotNone(effects["skill_learned"])
 
     def test_apply_location_guild_no_skill_when_all_learned(self):
@@ -1021,10 +1265,12 @@ class LocationServiceTests(TestCase):
         from .services.rng import DeterministicRng
 
         for skill in SkillDef.objects.filter(archetype="warrior"):
-            HeroSkill.objects.get_or_create(hero=self.warrior, skill_def=skill, defaults={"source": "test"})
+            HeroSkill.objects.get_or_create(
+                hero=self.warrior, skill_def=skill, defaults={"source": "test"}
+            )
         guild = SettlementLocationDef.objects.get(code="dwarf_guildmasters")
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.warrior, self.party, guild, rng)
+        effects, _ = apply_location_effects(self.warrior, self.party, guild, rng)
         self.assertIsNone(effects["skill_learned"])
 
     def test_apply_location_unknown_code_uses_default_narrative(self):
@@ -1032,11 +1278,13 @@ class LocationServiceTests(TestCase):
         from .services.rng import DeterministicRng
 
         unknown = SettlementLocationDef.objects.create(
-            code="nowhere", name="Nowhere Special",
-            always_available=False, village_available=False,
+            code="nowhere",
+            name="Nowhere Special",
+            always_available=False,
+            village_available=False,
         )
         rng = DeterministicRng("test")
-        effects, _dice = apply_location_effects(self.warrior, self.party, unknown, rng)
+        effects, _ = apply_location_effects(self.warrior, self.party, unknown, rng)
         self.assertIn("Nowhere Special", effects["narrative"])
 
 
@@ -1044,15 +1292,22 @@ class LocationServiceTests(TestCase):
 # Settlement service edge cases
 # ---------------------------------------------------------------------------
 
+
 class SettlementEdgeCaseTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Settlement Edge", seed="settle-edge-seed")
+        self.campaign = Campaign.objects.create(
+            name="Settlement Edge", seed="settle-edge-seed"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Edge Settlers", gold=0, supplies=5, morale=2
         )
         self.hero = Hero.objects.create(
-            party=self.party, name="Penny",
-            archetype=Hero.Archetype.WARRIOR, level=1, max_health=8, current_health=6,
+            party=self.party,
+            name="Penny",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=8,
+            current_health=6,
         )
         call_command("seed_warhammer_content")
 
@@ -1075,8 +1330,8 @@ class SettlementEdgeCaseTests(TestCase):
         self.assertEqual(result["action_effects"]["party_morale_delta"], -1)
 
     def test_catastrophic_event_triggered_after_week_2(self):
-        # current_day=20 -> after +1 becomes 21; week=3 (>2) and 21%7==0.
-        self.campaign.current_day = 20
+        # Completing day 14 begins week 3 and triggers the weekly event.
+        self.campaign.current_day = 14
         self.campaign.save(update_fields=["current_day", "updated_at"])
         self.party.gold = 50
         self.party.save(update_fields=["gold", "updated_at"])
@@ -1223,7 +1478,7 @@ class SettlementEdgeCaseTests(TestCase):
     def test_catastrophic_event_with_no_catastrophic_defs_returns_none(self):
         # Trigger week-3 catastrophic check but with no CatastrophicEventDefs seeded.
         CatastrophicEventDef.objects.all().delete()
-        self.campaign.current_day = 20
+        self.campaign.current_day = 14
         self.campaign.save(update_fields=["current_day", "updated_at"])
         result = resolve_settlement_action(self.hero, "rest")
         self.assertIsNone(result["catastrophic_event"])
@@ -1231,10 +1486,14 @@ class SettlementEdgeCaseTests(TestCase):
     def test_level_up_with_all_skills_learned_grants_no_skill(self):
         # Give the hero all warrior skills so _grant_level_up_skill returns None.
         for skill in SkillDef.objects.filter(archetype="warrior"):
-            HeroSkill.objects.get_or_create(hero=self.hero, skill_def=skill, defaults={"source": "test"})
+            HeroSkill.objects.get_or_create(
+                hero=self.hero, skill_def=skill, defaults={"source": "test"}
+            )
         self.party.gold = 500
         self.party.save(update_fields=["gold", "updated_at"])
-        with patch("campaign.services.settlement._resolve_settlement_event", return_value=None):
+        with patch(
+            "campaign.services.settlement._resolve_settlement_event", return_value=None
+        ):
             resolve_settlement_action(self.hero, "train")
             resolve_settlement_action(self.hero, "train")
         self.hero.refresh_from_db()
@@ -1260,7 +1519,9 @@ class SettlementEdgeCaseTests(TestCase):
         self.assertIsNone(result["action_log_id"])
         self.assertIn("unavailable", result["action_effects"]["narrative"])
         self.assertTrue(
-            StepLog.objects.filter(campaign=self.campaign, action_type="unavailable").exists()
+            StepLog.objects.filter(
+                campaign=self.campaign, action_type="unavailable"
+            ).exists()
         )
 
     def test_unavailable_hero_last_day_narrative_says_recovered(self):
@@ -1280,7 +1541,9 @@ class SettlementEdgeCaseTests(TestCase):
         self.hero.conditions = ["injured"]
         self.hero.save(update_fields=["current_health", "conditions", "updated_at"])
 
-        with patch("campaign.services.settlement._resolve_settlement_event", return_value=None):
+        with patch(
+            "campaign.services.settlement._resolve_settlement_event", return_value=None
+        ):
             resolve_settlement_action(self.hero, "rest")
 
         self.hero.refresh_from_db()
@@ -1293,7 +1556,9 @@ class SettlementEdgeCaseTests(TestCase):
         self.hero.conditions = ["injured"]
         self.hero.save(update_fields=["current_health", "conditions", "updated_at"])
 
-        with patch("campaign.services.settlement._resolve_settlement_event", return_value=None):
+        with patch(
+            "campaign.services.settlement._resolve_settlement_event", return_value=None
+        ):
             resolve_settlement_action(self.hero, "rest")
 
         self.hero.refresh_from_db()
@@ -1305,7 +1570,10 @@ class SettlementEdgeCaseTests(TestCase):
         self.party.save(update_fields=["gold", "updated_at"])
         starting_day = self.campaign.current_day
 
-        with patch("campaign.services.settlement._resolve_settlement_event", side_effect=RuntimeError("boom")):
+        with patch(
+            "campaign.services.settlement._resolve_settlement_event",
+            side_effect=RuntimeError("boom"),
+        ):
             with self.assertRaises(RuntimeError):
                 resolve_settlement_action(self.hero, "train")
 
@@ -1318,14 +1586,16 @@ class SettlementEdgeCaseTests(TestCase):
         self.assertEqual(self.campaign.current_day, starting_day)
 
 
-
 # ---------------------------------------------------------------------------
 # Form instantiation coverage
 # ---------------------------------------------------------------------------
 
+
 class FormTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Form Tests", seed="form-test-seed")
+        self.campaign = Campaign.objects.create(
+            name="Form Tests", seed="form-test-seed"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Form Party", gold=50, supplies=5, morale=0
         )
@@ -1344,15 +1614,22 @@ class FormTests(TestCase):
         from .forms import HeroActionForm
 
         hero = Hero.objects.create(
-            party=self.party, name="Form Hero",
-            archetype=Hero.Archetype.WARRIOR, level=1, max_health=10, current_health=10,
+            party=self.party,
+            name="Form Hero",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
         )
         form = HeroActionForm(party=self.party)
         field = form.fields["hero"]
         self.assertIsInstance(field, forms.ModelChoiceField)
         if not isinstance(field, forms.ModelChoiceField):
             self.fail("hero should be a ModelChoiceField")
-        self.assertIn(hero, field.queryset)
+        queryset = field.queryset
+        if queryset is None:
+            self.fail("hero queryset should be configured")
+        self.assertIn(hero, queryset)
 
     def test_hero_action_form_init_without_party_uses_empty_queryset(self):
         from .forms import HeroActionForm
@@ -1362,12 +1639,16 @@ class FormTests(TestCase):
         self.assertIsInstance(field, forms.ModelChoiceField)
         if not isinstance(field, forms.ModelChoiceField):
             self.fail("hero should be a ModelChoiceField")
-        self.assertEqual(field.queryset.count(), 0)
+        queryset = field.queryset
+        if queryset is None:
+            self.fail("hero queryset should be configured")
+        self.assertEqual(queryset.count(), 0)
 
 
 # ---------------------------------------------------------------------------
 # View coverage
 # ---------------------------------------------------------------------------
+
 
 class ViewTests(TestCase):
     def setUp(self):
@@ -1379,13 +1660,19 @@ class ViewTests(TestCase):
         self.regular_user = user_model.objects.create(
             username="player-" + self._testMethodName, is_staff=False, is_active=True
         )
-        self.campaign = Campaign.objects.create(name="View Campaign", seed="view-seed-001")
+        self.campaign = Campaign.objects.create(
+            name="View Campaign", seed="view-seed-001"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="View Party", gold=200, supplies=10, morale=0
         )
         self.hero = Hero.objects.create(
-            party=self.party, name="View Hero",
-            archetype=Hero.Archetype.WARRIOR, level=1, max_health=10, current_health=10,
+            party=self.party,
+            name="View Hero",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
         )
         call_command("seed_warhammer_content")
         self.expedition_def = ExpeditionDef.objects.get(code="road_escort")
@@ -1397,8 +1684,22 @@ class ViewTests(TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
 
+    def test_dashboard_hides_campaigns_owned_by_other_users(self):
+        self.campaign.owner = self.regular_user
+        self.campaign.save(update_fields=["owner", "updated_at"])
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "View Campaign")
+
+        self.client.force_login(self.regular_user)
+        response = self.client.get("/")
+        self.assertContains(response, "View Campaign")
+
     def test_dashboard_post_creates_campaign(self):
-        response = self.client.post("/", {"name": "New Campaign", "seed": "new-seed-unique"})
+        response = self.client.post(
+            "/", {"name": "New Campaign", "seed": "new-seed-unique"}
+        )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Campaign.objects.filter(seed="new-seed-unique").exists())
 
@@ -1408,9 +1709,32 @@ class ViewTests(TestCase):
 
     def test_campaign_import_creates_campaign_from_payload(self):
         payload = {
-            "campaign": {"name": "Imported Campaign", "seed": "import-seed", "current_day": 3, "current_week": 1},
-            "parties": [{"legacy_id": 1, "name": "Imported Party", "gold": 12, "supplies": 4, "morale": 1}],
-            "heroes": [{"legacy_id": 10, "party_legacy_id": 1, "name": "Imported Hero", "archetype": "warrior", "level": 2, "max_health": 11, "current_health": 9}],
+            "campaign": {
+                "name": "Imported Campaign",
+                "seed": "import-seed",
+                "current_day": 3,
+                "current_week": 1,
+            },
+            "parties": [
+                {
+                    "legacy_id": 1,
+                    "name": "Imported Party",
+                    "gold": 12,
+                    "supplies": 4,
+                    "morale": 1,
+                }
+            ],
+            "heroes": [
+                {
+                    "legacy_id": 10,
+                    "party_legacy_id": 1,
+                    "name": "Imported Hero",
+                    "archetype": "warrior",
+                    "level": 2,
+                    "max_health": 11,
+                    "current_health": 9,
+                }
+            ],
             "inventory_items": [],
             "hero_skills": [],
             "expeditions": [],
@@ -1424,7 +1748,9 @@ class ViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(Campaign.objects.filter(name="Imported Campaign (Imported)").exists())
+        self.assertTrue(
+            Campaign.objects.filter(name="Imported Campaign (Imported)").exists()
+        )
 
     def test_campaign_import_with_empty_payload_warns_and_redirects(self):
         response = self.client.post("/campaign/import/", {"payload": "   "})
@@ -1457,7 +1783,9 @@ class ViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        imported = Campaign.objects.filter(name="Imported Campaign (Imported)").latest("id")
+        imported = Campaign.objects.filter(name="Imported Campaign (Imported)").latest(
+            "id"
+        )
         self.assertTrue(imported.seed.startswith("import-seed-import"))
         self.assertNotEqual(imported.seed, "import-seed-import")
 
@@ -1481,16 +1809,32 @@ class ViewTests(TestCase):
         payload = {
             "campaign": {"name": "Import Branches", "seed": "branch-seed"},
             "parties": [
-                {"legacy_id": 1, "name": "Valid Party", "gold": 9, "supplies": 4, "morale": 0},
+                {
+                    "legacy_id": 1,
+                    "name": "Valid Party",
+                    "gold": 9,
+                    "supplies": 4,
+                    "morale": 0,
+                },
             ],
             "heroes": [
                 {"legacy_id": 10, "party_legacy_id": 999, "name": "Skipped Hero"},
-                {"legacy_id": 11, "party_legacy_id": 1, "name": "Valid Hero", "archetype": "warrior"},
+                {
+                    "legacy_id": 11,
+                    "party_legacy_id": 1,
+                    "name": "Valid Hero",
+                    "archetype": "warrior",
+                },
             ],
             "inventory_items": [
                 {"party_legacy_id": 999, "item_name": "WHQ Rope", "quantity": 1},
                 {"party_legacy_id": 1, "item_name": "Unknown Item", "quantity": 1},
-                {"party_legacy_id": 1, "hero_legacy_id": 11, "item_name": "WHQ Rope", "quantity": 2},
+                {
+                    "party_legacy_id": 1,
+                    "hero_legacy_id": 11,
+                    "item_name": "WHQ Rope",
+                    "quantity": 2,
+                },
             ],
             "hero_skills": [
                 {"hero_legacy_id": None, "skill_name": skill.name},
@@ -1499,10 +1843,26 @@ class ViewTests(TestCase):
                 {"hero_legacy_id": 11, "skill_name": skill.name, "source": "import"},
             ],
             "expeditions": [
-                {"party_legacy_id": None, "expedition_code": "import-test-expedition", "risk_level": "standard"},
-                {"party_legacy_id": 999, "expedition_code": "import-test-expedition", "risk_level": "standard"},
-                {"party_legacy_id": 1, "expedition_code": "unknown-expedition", "risk_level": "standard"},
-                {"party_legacy_id": 1, "expedition_code": "import-test-expedition", "risk_level": "standard"},
+                {
+                    "party_legacy_id": None,
+                    "expedition_code": "import-test-expedition",
+                    "risk_level": "standard",
+                },
+                {
+                    "party_legacy_id": 999,
+                    "expedition_code": "import-test-expedition",
+                    "risk_level": "standard",
+                },
+                {
+                    "party_legacy_id": 1,
+                    "expedition_code": "unknown-expedition",
+                    "risk_level": "standard",
+                },
+                {
+                    "party_legacy_id": 1,
+                    "expedition_code": "import-test-expedition",
+                    "risk_level": "standard",
+                },
             ],
             "step_logs": [
                 {
@@ -1528,34 +1888,73 @@ class ViewTests(TestCase):
         imported = Campaign.objects.get(name="Import Branches (Imported)")
         imported_party = Party.objects.get(campaign=imported, name="Valid Party")
         imported_hero = Hero.objects.get(party=imported_party, name="Valid Hero")
-        self.assertEqual(Hero.objects.filter(party__campaign=imported, name="Skipped Hero").count(), 0)
-        self.assertEqual(InventoryItem.objects.filter(party=imported_party, hero=imported_hero).count(), 1)
+        self.assertEqual(
+            Hero.objects.filter(party__campaign=imported, name="Skipped Hero").count(),
+            0,
+        )
+        self.assertEqual(
+            InventoryItem.objects.filter(
+                party=imported_party, hero=imported_hero
+            ).count(),
+            1,
+        )
         self.assertEqual(HeroSkill.objects.filter(hero=imported_hero).count(), 1)
         self.assertEqual(Expedition.objects.filter(campaign=imported).count(), 1)
-        self.assertEqual(StepLog.objects.filter(campaign=imported, action_type="import").count(), 1)
+        self.assertEqual(
+            StepLog.objects.filter(campaign=imported, action_type="import").count(), 1
+        )
 
     def test_campaign_import_skips_malformed_numeric_rows_without_500(self):
         payload = {
             "campaign": {"name": "Import Malformed", "seed": "malformed-seed"},
             "parties": [
                 {"legacy_id": "bad-id", "name": "Skip Party", "gold": "x"},
-                {"legacy_id": 1, "name": "Valid Party", "gold": "7", "supplies": "2", "morale": "1"},
+                {
+                    "legacy_id": 1,
+                    "name": "Valid Party",
+                    "gold": "7",
+                    "supplies": "2",
+                    "morale": "1",
+                },
             ],
             "heroes": [
                 {"legacy_id": "bad-hero", "party_legacy_id": 1, "name": "Skip Hero"},
                 {"legacy_id": 2, "party_legacy_id": "bad-party", "name": "Skip Hero 2"},
-                {"legacy_id": 3, "party_legacy_id": 1, "name": "Valid Hero", "archetype": "warrior"},
+                {
+                    "legacy_id": 3,
+                    "party_legacy_id": 1,
+                    "name": "Valid Hero",
+                    "archetype": "warrior",
+                },
             ],
             "inventory_items": [
-                {"party_legacy_id": "bad-party", "item_name": "WHQ Rope", "quantity": 1},
-                {"party_legacy_id": 1, "hero_legacy_id": "bad-hero", "item_name": "WHQ Rope", "quantity": 1},
-                {"party_legacy_id": 1, "hero_legacy_id": 3, "item_name": "WHQ Rope", "quantity": "3"},
+                {
+                    "party_legacy_id": "bad-party",
+                    "item_name": "WHQ Rope",
+                    "quantity": 1,
+                },
+                {
+                    "party_legacy_id": 1,
+                    "hero_legacy_id": "bad-hero",
+                    "item_name": "WHQ Rope",
+                    "quantity": 1,
+                },
+                {
+                    "party_legacy_id": 1,
+                    "hero_legacy_id": 3,
+                    "item_name": "WHQ Rope",
+                    "quantity": "3",
+                },
             ],
             "hero_skills": [
                 {"hero_legacy_id": "bad-hero", "skill_name": "Anything"},
             ],
             "expeditions": [
-                {"party_legacy_id": "bad-party", "expedition_code": "road_escort", "risk_level": "standard"},
+                {
+                    "party_legacy_id": "bad-party",
+                    "expedition_code": "road_escort",
+                    "risk_level": "standard",
+                },
             ],
             "step_logs": [
                 {
@@ -1577,8 +1976,12 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         imported = Campaign.objects.get(name="Import Malformed (Imported)")
         imported_party = Party.objects.get(campaign=imported, name="Valid Party")
-        self.assertEqual(Hero.objects.filter(party=imported_party, name="Valid Hero").count(), 1)
-        self.assertEqual(Hero.objects.filter(party=imported_party, name="Skip Hero").count(), 0)
+        self.assertEqual(
+            Hero.objects.filter(party=imported_party, name="Valid Hero").count(), 1
+        )
+        self.assertEqual(
+            Hero.objects.filter(party=imported_party, name="Skip Hero").count(), 0
+        )
 
     def test_campaign_import_skips_malformed_campaign_day_and_week_without_500(self):
         payload = {
@@ -1637,7 +2040,9 @@ class ViewTests(TestCase):
 
     def test_campaign_delete_removes_campaign(self):
         campaign_id = self.campaign.pk
-        response = self.client.post(f"/campaign/{campaign_id}/delete/", {"confirm_delete": "yes"})
+        response = self.client.post(
+            f"/campaign/{campaign_id}/delete/", {"confirm_delete": "yes"}
+        )
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Campaign.objects.filter(pk=campaign_id).exists())
@@ -1653,13 +2058,17 @@ class ViewTests(TestCase):
         response = self.client.get(f"/campaign/{self.campaign.pk}/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Delete this campaign and all associated progress?")
+        self.assertContains(
+            response, "Delete this campaign and all associated progress?"
+        )
 
     def test_campaign_detail_includes_delete_confirmation_checkbox(self):
         response = self.client.get(f"/campaign/{self.campaign.pk}/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "I understand this permanently deletes the campaign.")
+        self.assertContains(
+            response, "I understand this permanently deletes the campaign."
+        )
 
     def test_campaign_detail_includes_end_day_cta(self):
         response = self.client.get(f"/campaign/{self.campaign.pk}/")
@@ -1669,8 +2078,12 @@ class ViewTests(TestCase):
 
     def test_owned_campaign_is_hidden_from_other_non_staff_users(self):
         user_model = get_user_model()
-        owner = user_model.objects.create(username=self.id() + "-owner", is_staff=False, is_active=True)
-        intruder = user_model.objects.create(username=self.id() + "-intruder", is_staff=False, is_active=True)
+        owner = user_model.objects.create(
+            username=self.id() + "-owner", is_staff=False, is_active=True
+        )
+        intruder = user_model.objects.create(
+            username=self.id() + "-intruder", is_staff=False, is_active=True
+        )
         self.campaign.owner = owner
         self.campaign.save(update_fields=["owner", "updated_at"])
 
@@ -1681,7 +2094,9 @@ class ViewTests(TestCase):
 
     def test_owner_can_access_owned_campaign(self):
         user_model = get_user_model()
-        owner = user_model.objects.create(username=self.id() + "-owner-2", is_staff=False, is_active=True)
+        owner = user_model.objects.create(
+            username=self.id() + "-owner-2", is_staff=False, is_active=True
+        )
         self.campaign.owner = owner
         self.campaign.save(update_fields=["owner", "updated_at"])
 
@@ -1700,10 +2115,52 @@ class ViewTests(TestCase):
         campaign2 = Campaign.objects.create(name="Empty", seed="empty-view-seed")
         response = self.client.post(
             f"/campaign/{campaign2.pk}/",
-            {"create_type": "party", "campaign": campaign2.pk, "name": "New Party", "gold": "10", "supplies": "5", "morale": "0"},
+            {
+                "create_type": "party",
+                "campaign": campaign2.pk,
+                "name": "New Party",
+                "gold": "10",
+                "supplies": "5",
+                "morale": "0",
+            },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(Party.objects.filter(campaign=campaign2, name="New Party").exists())
+        self.assertTrue(
+            Party.objects.filter(campaign=campaign2, name="New Party").exists()
+        )
+
+    def test_campaign_detail_rejects_a_second_party(self):
+        response = self.client.post(
+            f"/campaign/{self.campaign.pk}/",
+            {
+                "create_type": "party",
+                "campaign": self.campaign.pk,
+                "name": "Second Party",
+                "gold": "10",
+                "supplies": "5",
+                "morale": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Party.objects.filter(campaign=self.campaign).count(), 1)
+
+    def test_campaign_detail_cannot_create_party_for_another_campaign(self):
+        other_campaign = Campaign.objects.create(name="Other", seed="other-view-seed")
+        response = self.client.post(
+            f"/campaign/{self.campaign.pk}/",
+            {
+                "create_type": "party",
+                "campaign": other_campaign.pk,
+                "name": "Forged Party",
+                "gold": "10",
+                "supplies": "5",
+                "morale": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Party.objects.filter(name="Forged Party").exists())
 
     def test_campaign_detail_post_create_hero(self):
         response = self.client.post(
@@ -1721,10 +2178,130 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Hero.objects.filter(party=self.party, name="New Hero").exists())
 
+    def test_full_campaign_cycle_persists_and_roundtrips(self):
+        self.party.gold = 800
+        self.party.save(update_fields=["gold", "updated_at"])
+
+        expedition_response = self.client.post(
+            f"/campaign/{self.campaign.pk}/expedition/",
+            {"expedition_def": self.expedition_def.pk, "risk_level": "standard"},
+        )
+        travel_response = self.client.post(
+            f"/campaign/{self.campaign.pk}/travel/", {"settlement_size": "village"}
+        )
+        action_response = self.client.post(
+            f"/campaign/{self.campaign.pk}/action/",
+            {
+                "hero": self.hero.pk,
+                "action_type": "rest",
+                "settlement_size": "village",
+            },
+        )
+        shop_response = self.client.post(
+            f"/campaign/{self.campaign.pk}/shop/",
+            {
+                "transaction_type": "buy",
+                "settlement_size": "city",
+                "item_def": self.item.pk,
+                "quantity": "1",
+            },
+        )
+
+        for response in (
+            expedition_response,
+            travel_response,
+            action_response,
+            shop_response,
+        ):
+            self.assertEqual(response.status_code, 302)
+
+        self.campaign.refresh_from_db()
+        self.party.refresh_from_db()
+        self.assertEqual(self.campaign.current_day, 2)
+        self.assertTrue(
+            InventoryItem.objects.filter(
+                party=self.party, hero=None, item_def=self.item, quantity=1
+            ).exists()
+        )
+        for step_type in ("expedition", "travel", "settlement", "economy"):
+            self.assertTrue(
+                StepLog.objects.filter(
+                    campaign=self.campaign, step_type=step_type
+                ).exists(),
+                f"Expected a {step_type} step in the campaign chronicle",
+            )
+
+        export_response = self.client.get(f"/campaign/{self.campaign.pk}/export/")
+        self.assertEqual(export_response.status_code, 200)
+        import_response = self.client.post(
+            "/campaign/import/",
+            data=export_response.content,
+            content_type="application/json",
+        )
+        self.assertEqual(import_response.status_code, 302)
+
+        imported = Campaign.objects.get(name=f"{self.campaign.name} (Imported)")
+        self.assertTrue(
+            StepLog.objects.filter(campaign=imported, step_type="expedition").exists()
+        )
+        self.assertTrue(
+            InventoryItem.objects.filter(
+                party__campaign=imported, item_def=self.item, quantity=1
+            ).exists()
+        )
+
+    def test_campaign_detail_cannot_create_hero_in_another_campaign(self):
+        other_campaign = Campaign.objects.create(
+            name="Other Hero Campaign", seed="other-hero-view-seed"
+        )
+        other_party = Party.objects.create(campaign=other_campaign, name="Other Party")
+        response = self.client.post(
+            f"/campaign/{self.campaign.pk}/",
+            {
+                "create_type": "hero",
+                "party": other_party.pk,
+                "name": "Forged Hero",
+                "archetype": "warrior",
+                "level": "1",
+                "max_health": "10",
+                "current_health": "10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Hero.objects.filter(name="Forged Hero").exists())
+
+    def test_campaign_detail_rejects_a_fifth_hero(self):
+        for hero_number in range(2, 5):
+            Hero.objects.create(
+                party=self.party,
+                name=f"Party Hero {hero_number}",
+                archetype=Hero.Archetype.WARRIOR,
+            )
+
+        response = self.client.post(
+            f"/campaign/{self.campaign.pk}/",
+            {
+                "create_type": "hero",
+                "party": self.party.pk,
+                "name": "Fifth Hero",
+                "archetype": "warrior",
+                "level": "1",
+                "max_health": "10",
+                "current_health": "10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Hero.objects.filter(party=self.party).count(), 4)
+        self.assertFalse(Hero.objects.filter(name="Fifth Hero").exists())
+
     # --- Expedition view ---
 
     def test_resolve_expedition_with_no_party_returns_404(self):
-        campaign_empty = Campaign.objects.create(name="Empty Expd", seed="empty-expd-seed")
+        campaign_empty = Campaign.objects.create(
+            name="Empty Expd", seed="empty-expd-seed"
+        )
         response = self.client.post(
             f"/campaign/{campaign_empty.pk}/expedition/",
             {"expedition_def": self.expedition_def.pk, "risk_level": "standard"},
@@ -1748,7 +2325,9 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_travel_with_no_party_returns_404(self):
-        campaign_empty = Campaign.objects.create(name="Empty Travel", seed="empty-travel-seed")
+        campaign_empty = Campaign.objects.create(
+            name="Empty Travel", seed="empty-travel-seed"
+        )
         response = self.client.post(
             f"/campaign/{campaign_empty.pk}/travel/",
             {"settlement_size": "village"},
@@ -1772,7 +2351,9 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_hero_action_with_no_party_returns_404(self):
-        campaign_empty = Campaign.objects.create(name="Empty Action", seed="empty-action-seed")
+        campaign_empty = Campaign.objects.create(
+            name="Empty Action", seed="empty-action-seed"
+        )
         response = self.client.post(
             f"/campaign/{campaign_empty.pk}/action/",
             {"hero": self.hero.pk, "action_type": "rest", "settlement_size": "town"},
@@ -1815,7 +2396,9 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_shop_transaction_with_no_party_returns_404(self):
-        campaign_empty = Campaign.objects.create(name="Empty Shop", seed="empty-shop-seed")
+        campaign_empty = Campaign.objects.create(
+            name="Empty Shop", seed="empty-shop-seed"
+        )
         response = self.client.post(
             f"/campaign/{campaign_empty.pk}/shop/",
             {
@@ -1830,7 +2413,12 @@ class ViewTests(TestCase):
     def test_resolve_shop_transaction_invalid_form_redirects(self):
         response = self.client.post(
             f"/campaign/{self.campaign.pk}/shop/",
-            {"transaction_type": "", "settlement_size": "", "item_def": "", "quantity": ""},
+            {
+                "transaction_type": "",
+                "settlement_size": "",
+                "item_def": "",
+                "quantity": "",
+            },
         )
         self.assertEqual(response.status_code, 302)
 
@@ -1863,7 +2451,9 @@ class ViewTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(SettlementEventDef.objects.filter(name="New Test Event").exists())
+        self.assertTrue(
+            SettlementEventDef.objects.filter(name="New Test Event").exists()
+        )
 
     def test_gm_console_post_catastrophic_form_creates_event(self):
         self.client.force_login(self.staff_user)
@@ -1877,7 +2467,9 @@ class ViewTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(CatastrophicEventDef.objects.filter(name="New Test Catastrophe").exists())
+        self.assertTrue(
+            CatastrophicEventDef.objects.filter(name="New Test Catastrophe").exists()
+        )
 
     def test_gm_console_post_location_form_creates_location(self):
         self.client.force_login(self.staff_user)
@@ -1893,7 +2485,9 @@ class ViewTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(SettlementLocationDef.objects.filter(code="test-new-loc").exists())
+        self.assertTrue(
+            SettlementLocationDef.objects.filter(code="test-new-loc").exists()
+        )
 
     def test_gm_console_post_invalid_form_rerenders_without_redirect(self):
         self.client.force_login(self.staff_user)
@@ -1936,7 +2530,9 @@ class ViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         messages = list(response.context["messages"])
-        self.assertTrue(any("Safe to run again" in str(message) for message in messages))
+        self.assertTrue(
+            any("Safe to run again" in str(message) for message in messages)
+        )
 
     # --- Step log detail ---
 
@@ -1975,16 +2571,26 @@ class ViewTests(TestCase):
 
 class EncumbranceTests(TestCase):
     def setUp(self):
-        self.campaign = Campaign.objects.create(name="Enc Campaign", seed="enc-seed-001")
+        self.campaign = Campaign.objects.create(
+            name="Enc Campaign", seed="enc-seed-001"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Enc Party", gold=500, supplies=10, morale=0
         )
         self.hero = Hero.objects.create(
-            party=self.party, name="Enc Hero",
-            archetype=Hero.Archetype.WARRIOR, level=3, max_health=12, current_health=12,
+            party=self.party,
+            name="Enc Hero",
+            archetype=Hero.Archetype.WARRIOR,
+            level=3,
+            max_health=12,
+            current_health=12,
         )
         self.item_def = ItemDef.objects.create(
-            name="Heavy Stone", category="utility", base_price=10, stock_value=1, weight=4,
+            name="Heavy Stone",
+            category="utility",
+            base_price=10,
+            stock_value=1,
+            weight=4,
             definition={"source": "test", "narrative": "A heavy stone."},
         )
 
@@ -2009,7 +2615,11 @@ class EncumbranceTests(TestCase):
 
     def test_get_hero_carry_weight_sums_multiple_item_types(self):
         light_item = ItemDef.objects.create(
-            name="Candle", category="utility", base_price=1, stock_value=1, weight=1,
+            name="Candle",
+            category="utility",
+            base_price=1,
+            stock_value=1,
+            weight=1,
             definition={"source": "test", "narrative": "A candle."},
         )
         InventoryItem.objects.create(
@@ -2068,13 +2678,19 @@ class EncumbranceTests(TestCase):
 class CraftingServiceTests(TestCase):
     def setUp(self):
         call_command("seed_warhammer_content")
-        self.campaign = Campaign.objects.create(name="Craft Campaign", seed="craft-seed-001")
+        self.campaign = Campaign.objects.create(
+            name="Craft Campaign", seed="craft-seed-001"
+        )
         self.party = Party.objects.create(
             campaign=self.campaign, name="Craft Party", gold=500, supplies=10, morale=0
         )
         self.hero = Hero.objects.create(
-            party=self.party, name="Craft Hero",
-            archetype=Hero.Archetype.WARRIOR, level=1, max_health=10, current_health=10,
+            party=self.party,
+            name="Craft Hero",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
         )
         self.recipe_kit = CraftingRecipeDef.objects.get(code="whq_exploration_kit")
         self.recipe_draught = CraftingRecipeDef.objects.get(code="whq_enhanced_draught")
@@ -2092,23 +2708,42 @@ class CraftingServiceTests(TestCase):
     # --- Happy path crafting ---
 
     def test_crafting_creates_output_and_consumes_ingredients(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_lantern, quantity=1
+        )
 
         result = resolve_crafting(party=self.party, recipe_def=self.recipe_kit)
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["output_item_name"], "WHQ Exploration Kit")
         self.assertEqual(result["output_quantity"], 1)
-        self.assertFalse(InventoryItem.objects.filter(party=self.party, item_def=self.item_rope).exists())
-        self.assertFalse(InventoryItem.objects.filter(party=self.party, item_def=self.item_lantern).exists())
+        self.assertFalse(
+            InventoryItem.objects.filter(
+                party=self.party, item_def=self.item_rope
+            ).exists()
+        )
+        self.assertFalse(
+            InventoryItem.objects.filter(
+                party=self.party, item_def=self.item_lantern
+            ).exists()
+        )
         self.assertEqual(
-            InventoryItem.objects.get(party=self.party, item_def=self.item_kit).quantity, 1
+            InventoryItem.objects.get(
+                party=self.party, item_def=self.item_kit
+            ).quantity,
+            1,
         )
 
     def test_crafting_step_log_created_on_success(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_lantern, quantity=1
+        )
 
         resolve_crafting(party=self.party, recipe_def=self.recipe_kit)
 
@@ -2120,56 +2755,92 @@ class CraftingServiceTests(TestCase):
         self.assertEqual(log.effects_applied["status"], "success")
 
     def test_crafting_stacks_output_with_existing_inventory(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=1)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_kit, quantity=2)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_lantern, quantity=1
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_kit, quantity=2
+        )
 
         resolve_crafting(party=self.party, recipe_def=self.recipe_kit)
 
         self.assertEqual(
-            InventoryItem.objects.get(party=self.party, item_def=self.item_kit).quantity, 3
+            InventoryItem.objects.get(
+                party=self.party, item_def=self.item_kit
+            ).quantity,
+            3,
         )
 
     def test_crafting_with_hero_arg_logs_hero_on_steplog(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_lantern, quantity=1
+        )
 
         resolve_crafting(party=self.party, recipe_def=self.recipe_kit, hero=self.hero)
 
-        log = StepLog.objects.filter(campaign=self.campaign, action_type="craft").first()
+        log = StepLog.objects.filter(
+            campaign=self.campaign, action_type="craft"
+        ).first()
         if log is None:
             self.fail("Expected a crafting step log when crafting with a hero")
         self.assertEqual(log.hero, self.hero)
 
     def test_crafting_consumes_excess_ingredient_quantity(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=3)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=5)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=3
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_lantern, quantity=5
+        )
 
         resolve_crafting(party=self.party, recipe_def=self.recipe_kit)
 
         self.assertEqual(
-            InventoryItem.objects.get(party=self.party, item_def=self.item_rope).quantity, 2
+            InventoryItem.objects.get(
+                party=self.party, item_def=self.item_rope
+            ).quantity,
+            2,
         )
         self.assertEqual(
-            InventoryItem.objects.get(party=self.party, item_def=self.item_lantern).quantity, 4
+            InventoryItem.objects.get(
+                party=self.party, item_def=self.item_lantern
+            ).quantity,
+            4,
         )
 
     def test_crafting_double_ingredient_recipe(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_draught, quantity=2)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_draught, quantity=2
+        )
 
         result = resolve_crafting(party=self.party, recipe_def=self.recipe_draught)
 
         self.assertEqual(result["status"], "success")
-        self.assertFalse(InventoryItem.objects.filter(party=self.party, item_def=self.item_draught).exists())
+        self.assertFalse(
+            InventoryItem.objects.filter(
+                party=self.party, item_def=self.item_draught
+            ).exists()
+        )
         self.assertEqual(
-            InventoryItem.objects.get(party=self.party, item_def=self.item_enhanced).quantity, 1
+            InventoryItem.objects.get(
+                party=self.party, item_def=self.item_enhanced
+            ).quantity,
+            1,
         )
 
     # --- Rejection paths ---
 
     def test_crafting_fails_when_ingredient_missing(self):
         # Only rope in inventory, no lantern.
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
 
         result = resolve_crafting(party=self.party, recipe_def=self.recipe_kit)
 
@@ -2180,7 +2851,9 @@ class CraftingServiceTests(TestCase):
 
     def test_crafting_fails_when_ingredient_quantity_insufficient(self):
         # Need 2 draughts, only have 1.
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_draught, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_draught, quantity=1
+        )
 
         result = resolve_crafting(party=self.party, recipe_def=self.recipe_draught)
 
@@ -2194,21 +2867,35 @@ class CraftingServiceTests(TestCase):
 
         self.assertEqual(result["status"], "rejected")
         log = StepLog.objects.filter(
-            campaign=self.campaign, step_type="crafting", action_type="crafting_rejected"
+            campaign=self.campaign,
+            step_type="crafting",
+            action_type="crafting_rejected",
         ).first()
         self.assertIsNotNone(log)
 
     def test_crafting_rejection_does_not_alter_inventory(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
 
         resolve_crafting(party=self.party, recipe_def=self.recipe_kit)
 
-        self.assertTrue(InventoryItem.objects.filter(party=self.party, item_def=self.item_rope).exists())
-        self.assertFalse(InventoryItem.objects.filter(party=self.party, item_def=self.item_kit).exists())
+        self.assertTrue(
+            InventoryItem.objects.filter(
+                party=self.party, item_def=self.item_rope
+            ).exists()
+        )
+        self.assertFalse(
+            InventoryItem.objects.filter(
+                party=self.party, item_def=self.item_kit
+            ).exists()
+        )
 
     def test_crafting_partial_ingredient_available_uses_available_count(self):
         # Have 1 of an ingredient that requires 2 — available reported correctly.
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_draught, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_draught, quantity=1
+        )
         result = resolve_crafting(party=self.party, recipe_def=self.recipe_draught)
         self.assertEqual(result["available"], 1)
 
@@ -2222,16 +2909,24 @@ class CraftingViewTests(TestCase):
             campaign=self.campaign, name="CV Party", gold=500, supplies=10, morale=0
         )
         self.hero = Hero.objects.create(
-            party=self.party, name="CV Hero",
-            archetype=Hero.Archetype.WARRIOR, level=1, max_health=10, current_health=10,
+            party=self.party,
+            name="CV Hero",
+            archetype=Hero.Archetype.WARRIOR,
+            level=1,
+            max_health=10,
+            current_health=10,
         )
         self.recipe = CraftingRecipeDef.objects.get(code="whq_exploration_kit")
         self.item_rope = ItemDef.objects.get(name="WHQ Rope")
         self.item_lantern = ItemDef.objects.get(name="WHQ Lantern")
 
     def test_resolve_crafting_with_ingredients_succeeds(self):
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_rope, quantity=1)
-        InventoryItem.objects.create(party=self.party, hero=None, item_def=self.item_lantern, quantity=1)
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_rope, quantity=1
+        )
+        InventoryItem.objects.create(
+            party=self.party, hero=None, item_def=self.item_lantern, quantity=1
+        )
 
         response = self.client.post(
             f"/campaign/{self.campaign.pk}/craft/",
@@ -2240,7 +2935,9 @@ class CraftingViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_resolve_crafting_with_no_party_returns_404(self):
-        campaign_empty = Campaign.objects.create(name="Empty Craft", seed="empty-craft-seed")
+        campaign_empty = Campaign.objects.create(
+            name="Empty Craft", seed="empty-craft-seed"
+        )
         response = self.client.post(
             f"/campaign/{campaign_empty.pk}/craft/",
             {"recipe_def": self.recipe.pk},
@@ -2263,7 +2960,9 @@ class CraftingViewTests(TestCase):
 
     def test_gm_console_post_crafting_recipe_form_creates_recipe(self):
         user_model = get_user_model()
-        staff = user_model.objects.create(username=self.id(), is_staff=True, is_active=True)
+        staff = user_model.objects.create(
+            username=self.id(), is_staff=True, is_active=True
+        )
         self.client.force_login(staff)
         response = self.client.post(
             "/gm/",
@@ -2275,7 +2974,9 @@ class CraftingViewTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(CraftingRecipeDef.objects.filter(code="test_recipe_unique").exists())
+        self.assertTrue(
+            CraftingRecipeDef.objects.filter(code="test_recipe_unique").exists()
+        )
 
 
 class DatabaseAndContentLifecycleTests(TestCase):
@@ -2283,8 +2984,17 @@ class DatabaseAndContentLifecycleTests(TestCase):
         call_command("seed_warhammer_content")
 
     def test_steplog_indexes_exist(self):
-        constraints = connection.introspection.get_constraints(connection.cursor(), StepLog._meta.db_table)
-        index_columns = {tuple(value.get("columns", [])) for value in constraints.values() if value.get("index")}
+        constraints = (
+            connection.introspection.get_constraints(
+                connection.cursor(), StepLog._meta.db_table
+            )
+            or {}
+        )
+        index_columns = {
+            tuple(value.get("columns", []))
+            for value in constraints.values()
+            if value.get("index")
+        }
         self.assertIn(("campaign_id", "created_at"), index_columns)
         self.assertIn(("campaign_id", "step_type", "action_type"), index_columns)
 
@@ -2297,7 +3007,34 @@ class DatabaseAndContentLifecycleTests(TestCase):
         )
 
         HazardDef.objects.filter(definition__source="whq_roleplay_book").delete()
-        self.assertEqual(HazardDef.objects.filter(definition__source="whq_roleplay_book").count(), 0)
+        self.assertEqual(
+            HazardDef.objects.filter(definition__source="whq_roleplay_book").count(), 0
+        )
 
-        call_command("import_content_pack", name="WHQ Test Pack", pack_version="1.0-test")
-        self.assertGreater(HazardDef.objects.filter(definition__source="whq_roleplay_book").count(), 0)
+        call_command(
+            "import_content_pack", name="WHQ Test Pack", pack_version="1.0-test"
+        )
+        self.assertGreater(
+            HazardDef.objects.filter(definition__source="whq_roleplay_book").count(), 0
+        )
+
+    def test_content_pack_import_rolls_back_partial_changes(self):
+        ContentPack.objects.create(
+            name="Malformed Pack",
+            version="1.0",
+            content={
+                "hazards": [
+                    {
+                        "name": "Should Roll Back",
+                        "settlement_size": "village",
+                        "severity": 1,
+                    },
+                    {"settlement_size": "village", "severity": 1},
+                ]
+            },
+        )
+
+        with self.assertRaises(KeyError):
+            call_command("import_content_pack", name="Malformed Pack")
+
+        self.assertFalse(HazardDef.objects.filter(name="Should Roll Back").exists())
