@@ -1,32 +1,23 @@
 # Game Overview
 
-## Introduction
+Quest Between is a single-player, browser-based campaign RPG. The player manages a party of one to four heroes between adventures; expeditions resolve through deterministic simulation and return persistent consequences to the campaign.
 
-This game is inspired by the non-dungeon parts of the original Advanced Warhammer Quest, focusing on character progression, events, and role-playing aspects outside of the dungeon.
+## Supported Play
 
-## Game Concept
+- Create and manage campaigns, parties, and heroes.
+- Simulate expeditions using party capability, risk, and editable expedition definitions.
+- Resolve travel hazards, settlement actions, events, trade, crafting, training, injury, and recovery.
+- Review the campaign chronicle, export campaign state, and import it later.
 
-Players will control heroes who explore towns, interact with NPCs, trade items, manage their resources, and face random events. The game emphasizes strategic planning, character development, and immersion in a dynamic world.
+## Platform
 
-## Target Audience
+- Django templates and PostgreSQL, deployable with Docker Compose.
+- Desktop browser first, usable on a local network.
+- Single-player only.
 
-Fans of tabletop role-playing games, especially those who enjoy the Warhammer universe and narrative-driven gameplay.
+## Explicit Exclusions
 
-## Platforms
+- Dungeon maps, room exploration, grid movement, or tactical/turn-based combat.
+- Quest trees, enemy encounters, platforming, multiplayer, or cloud-only services.
 
-- Web-based (Desktop and Mobile)
-- Single-player with potential for multiplayer expansion
-
-## Game Goals
-
-- Simulate the adventure and town phase of Advanced Warhammer Quest.
-- Allow players to build and customize their characters.
-- Create a dynamic world with events and encounters.
-
-## Core Features
-
-- Character Management
-- Town Exploration
-- Random Events and Encounters
-- Inventory and Resource Management
-- Trading and Crafting
+Game rules and campaign content belong in database definitions and content packs, not in template copy or UI-specific logic.

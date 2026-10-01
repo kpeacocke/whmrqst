@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 from campaign.models import (
     CatastrophicEventDef,
@@ -8,6 +9,7 @@ from campaign.models import (
     ItemDef,
     SettlementEventDef,
     SettlementLocationDef,
+    ShopDef,
     SkillDef,
 )
 
@@ -25,9 +27,18 @@ ITEM_ENHANCED_DRAUGHT = "WHQ Enhanced Draught"
 class Command(BaseCommand):
     help = "Seed WHQ Roleplay Book travel hazards, settlement events, and catastrophic events"
 
+    @transaction.atomic
     def handle(self, *args, **options):
         del args, options
-        self._clear_previous_whq_seed()
+        self._seed_default_shops()
+        if self._has_seeded_content():
+            self.stdout.write(
+                self.style.WARNING(
+                    "Existing campaign content preserved; import a content pack to update it."
+                )
+            )
+            return
+
         self._seed_hazards()
         self._seed_settlement_events()
         self._seed_catastrophic_events()
@@ -40,47 +51,35 @@ class Command(BaseCommand):
             self.style.SUCCESS("Warhammer-inspired content tables seeded.")
         )
 
-    def _clear_previous_whq_seed(self):
-        HazardDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        SettlementEventDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        CatastrophicEventDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        SettlementLocationDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        CraftingRecipeDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        ItemDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        SkillDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        ExpeditionDef.objects.filter(definition__source=WHQ_SOURCE).delete()
-        HazardDef.objects.filter(name__startswith="WHQ ").delete()
-        SettlementEventDef.objects.filter(name__startswith="WHQ ").delete()
-        CatastrophicEventDef.objects.filter(name__startswith="WHQ ").delete()
-        ItemDef.objects.filter(name__startswith="WHQ ").delete()
+    def _seed_default_shops(self):
+        for settlement_size, availability_dice in (
+            ("village", 1),
+            ("town", 2),
+            ("city", 3),
+        ):
+            ShopDef.objects.get_or_create(
+                name=f"{settlement_size.title()} Market",
+                defaults={
+                    "settlement_size": settlement_size,
+                    "stock_table": {
+                        "source": WHQ_SOURCE,
+                        "availability_dice": availability_dice,
+                    },
+                },
+            )
 
-        HazardDef.objects.filter(
-            name__in=[
-                "Brigand Toll",
-                "Rotting Provisions",
-                "Washed-Out Ford",
-                "Beastmen Ambush",
-                "Road Tariff",
-                "Night Storm",
-                "Chaos Cult Pursuit",
-                "Witch-Hunter Inspection",
-                "Refugee Surge",
-            ]
-        ).delete()
-        SettlementEventDef.objects.filter(
-            name__in=[
-                "Fortune Teller's Warning",
-                "Pickpocket in the Market",
-                "Shrine Blessing",
-            ]
-        ).delete()
-        CatastrophicEventDef.objects.filter(
-            name__in=[
-                "Plague Outbreak",
-                "Witch-Hunt Panic",
-                "Militia Levy",
-            ]
-        ).delete()
+    def _has_seeded_content(self) -> bool:
+        content_sources = (
+            HazardDef.objects.filter(definition__source=WHQ_SOURCE),
+            SettlementEventDef.objects.filter(definition__source=WHQ_SOURCE),
+            CatastrophicEventDef.objects.filter(definition__source=WHQ_SOURCE),
+            SettlementLocationDef.objects.filter(definition__source=WHQ_SOURCE),
+            CraftingRecipeDef.objects.filter(definition__source=WHQ_SOURCE),
+            ItemDef.objects.filter(definition__source=WHQ_SOURCE),
+            SkillDef.objects.filter(definition__source=WHQ_SOURCE),
+            ExpeditionDef.objects.filter(definition__source=WHQ_SOURCE),
+        )
+        return any(queryset.exists() for queryset in content_sources)
 
     def _seed_items(self):
         items = [
@@ -144,6 +143,9 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Always available in villages, towns, and cities.",
+                    "effects": [
+                        {"type": "alehouse", "gold_cost": 5, "morale_delta": 1}
+                    ],
                 },
             },
             {
@@ -157,6 +159,7 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Transmutes one unused item into gold for a fee.",
+                    "effects": [],
                 },
             },
             {
@@ -170,6 +173,8 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Dwarf-only access to lock tools, firebombs, and runesmith services.",
+                    "required_archetype": "warrior",
+                    "effects": [{"type": "grant_archetype_skill"}],
                 },
             },
             {
@@ -183,6 +188,8 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Elf-only access to elven gear, waybread, and master craftsmen.",
+                    "required_archetype": "ranger",
+                    "effects": [{"type": "grant_archetype_skill"}],
                 },
             },
             {
@@ -196,6 +203,17 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "May be visited repeatedly; wagers up to 200 gold per day.",
+                    "effects": [
+                        {
+                            "type": "gambling_house",
+                            "minimum_wager": 10,
+                            "maximum_wager": 200,
+                            "wager_divisor": 4,
+                            "lose_max_roll": 3,
+                            "break_even_roll": 4,
+                            "payout_multiplier": 1,
+                        }
+                    ],
                 },
             },
             {
@@ -209,6 +227,13 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "50 gold donation grants one roll on temple blessings.",
+                    "effects": [
+                        {
+                            "type": "temple",
+                            "donation_cost": 50,
+                            "reroll_charges": 1,
+                        }
+                    ],
                 },
             },
             {
@@ -222,6 +247,8 @@ class Command(BaseCommand):
                     "source": WHQ_SOURCE,
                     "book_section": SPECIAL_LOCATIONS_SECTION,
                     "narrative": "Wizard-only consultations, potions, and staff recharging.",
+                    "required_archetype": "mage",
+                    "effects": [{"type": "grant_archetype_skill"}],
                 },
             },
         ]

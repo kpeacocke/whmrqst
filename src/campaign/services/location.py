@@ -2,15 +2,8 @@ from typing import Any
 
 from campaign.models import Hero, HeroSkill, Party, SettlementLocationDef, SkillDef
 from campaign.services.rng import DeterministicRng
+from campaign.services.rules import get_game_rules
 
-
-ARCHETYPE_LOCATION_GATES = {
-    "wizards_guild": "mage",
-    "elf_quarter": "ranger",
-    "dwarf_guildmasters": "warrior",
-}
-
-SKILL_GRANTING_LOCATIONS = {"wizards_guild", "elf_quarter", "dwarf_guildmasters"}
 VALID_SETTLEMENT_SIZES = {"village", "town", "city"}
 
 
@@ -106,20 +99,33 @@ def apply_location_effects(
     code = location.code
     effects = _initialise_location_effects(code)
     dice_rolled: list[dict[str, Any]] = []
+    definition = location.definition or {}
+    location_rules = get_game_rules().get("location", {})
 
-    # Archetype gates — return early without any mutation if hero doesn't qualify.
-    required_archetype = ARCHETYPE_LOCATION_GATES.get(code)
+    required_archetype = definition.get("required_archetype") or location_rules.get(
+        "archetype_gates", {}
+    ).get(code)
     if required_archetype and hero.archetype != required_archetype:
         _reject_wrong_archetype(hero, location, effects)
         return effects, dice_rolled
 
-    handler = LOCATION_EFFECT_HANDLERS.get(code)
-    if handler is not None:
-        handler(hero, party, location, rng, effects, dice_rolled)
-    elif code in SKILL_GRANTING_LOCATIONS:
-        _apply_skill_location_effects(hero, location, effects)
-    else:
+    effect_definitions = definition.get("effects", [])
+    if not effect_definitions:
         effects["narrative"] = f"{hero.name} explores the {location.name}."
+    for effect_definition in effect_definitions:
+        effect_type = effect_definition.get("type")
+        handler = LOCATION_EFFECT_HANDLERS.get(effect_type)
+        if handler is None:
+            raise ValueError(f"Unsupported location effect: {effect_type}")
+        handler(
+            hero,
+            party,
+            location,
+            rng,
+            effects,
+            dice_rolled,
+            effect_definition,
+        )
 
     effects["dice_rolled"] = dice_rolled
     return effects, dice_rolled
@@ -154,14 +160,16 @@ def _apply_alehouse_effects(
     rng: DeterministicRng,
     effects: dict[str, Any],
     dice_rolled: list[dict[str, Any]],
+    definition: dict[str, Any],
 ) -> None:
     del rng, dice_rolled
-    cost = min(5, party.gold)
+    cost = min(int(definition.get("gold_cost", 0)), party.gold)
     if cost > 0:
         party.gold -= cost
         effects["party_gold_delta"] -= cost
-    party.morale += 1
-    effects["party_morale_delta"] += 1
+    morale_delta = int(definition.get("morale_delta", 0))
+    party.morale += morale_delta
+    effects["party_morale_delta"] += morale_delta
     effects["narrative"] = (
         f"{hero.name} spends a restful evening at the {location.name}. Morale improves."
     )
@@ -175,18 +183,21 @@ def _apply_temple_effects(
     rng: DeterministicRng,
     effects: dict[str, Any],
     dice_rolled: list[dict[str, Any]],
+    definition: dict[str, Any],
 ) -> None:
     del rng, dice_rolled
-    if party.gold < 50:
+    donation_cost = int(definition.get("donation_cost", 0))
+    if party.gold < donation_cost:
         effects["rejected"] = "insufficient_gold"
         effects["narrative"] = (
-            f"{hero.name} cannot afford the 50 gold donation at the {location.name}."
+            f"{hero.name} cannot afford the {donation_cost} gold donation at the {location.name}."
         )
         return
 
-    party.gold -= 50
-    effects["party_gold_delta"] -= 50
-    hero.temple_reroll_charges += 1
+    reroll_charges = int(definition.get("reroll_charges", 0))
+    party.gold -= donation_cost
+    effects["party_gold_delta"] -= donation_cost
+    hero.temple_reroll_charges += reroll_charges
     effects["narrative"] = (
         f"{hero.name} donates to the temple and receives a divine blessing."
     )
@@ -201,8 +212,12 @@ def _apply_gambling_house_effects(
     rng: DeterministicRng,
     effects: dict[str, Any],
     dice_rolled: list[dict[str, Any]],
+    definition: dict[str, Any],
 ) -> None:
-    wager = max(10, min(100, party.gold // 4))
+    minimum_wager = int(definition.get("minimum_wager", 1))
+    maximum_wager = int(definition.get("maximum_wager", minimum_wager))
+    wager_divisor = max(1, int(definition.get("wager_divisor", 1)))
+    wager = max(minimum_wager, min(maximum_wager, party.gold // wager_divisor))
     if party.gold < wager:
         effects["rejected"] = "insufficient_gold"
         effects["narrative"] = f"Not enough gold to wager at the {location.name}."
@@ -210,16 +225,16 @@ def _apply_gambling_house_effects(
 
     roll = rng.d6()
     dice_rolled.append({"die": "d6", "result": roll, "context": "gambling-roll"})
-    if roll <= 3:
+    if roll <= int(definition.get("lose_max_roll", 0)):
         party.gold -= wager
         effects["party_gold_delta"] -= wager
         effects["narrative"] = (
             f"{hero.name} loses the wager of {wager} gold at the {location.name}."
         )
-    elif roll == 4:
+    elif roll == int(definition.get("break_even_roll", 0)):
         effects["narrative"] = f"{hero.name} breaks even at the {location.name}."
     else:
-        winnings = wager
+        winnings = wager * int(definition.get("payout_multiplier", 1))
         party.gold += winnings
         effects["party_gold_delta"] += winnings
         effects["narrative"] = (
@@ -235,8 +250,9 @@ def _apply_alchemist_effects(
     rng: DeterministicRng,
     effects: dict[str, Any],
     dice_rolled: list[dict[str, Any]],
+    definition: dict[str, Any],
 ) -> None:
-    del party, rng, dice_rolled
+    del party, rng, dice_rolled, definition
     effects["narrative"] = (
         f"{hero.name} visits {location.name} but has nothing to transmute."
     )
@@ -244,9 +260,14 @@ def _apply_alchemist_effects(
 
 def _apply_skill_location_effects(
     hero: Hero,
+    party: Party,
     location: SettlementLocationDef,
+    rng: DeterministicRng,
     effects: dict[str, Any],
+    dice_rolled: list[dict[str, Any]],
+    definition: dict[str, Any],
 ) -> None:
+    del party, rng, dice_rolled, definition
     skill = _grant_next_archetype_skill(hero, location)
     if skill is None:
         effects["narrative"] = (
@@ -265,6 +286,7 @@ LOCATION_EFFECT_HANDLERS = {
     "temple": _apply_temple_effects,
     "gambling_house": _apply_gambling_house_effects,
     "alchemist": _apply_alchemist_effects,
+    "grant_archetype_skill": _apply_skill_location_effects,
 }
 
 

@@ -1,23 +1,16 @@
-# Inventory Management
+# Inventory, Trade, and Crafting
 
-## Inventory System
+## Inventory Model
 
-Each hero has an inventory with a limited number of slots for carrying items such as weapons, armor, potions, and treasures.
+Items are database-defined and stored as quantities owned either by the party or an individual hero. Item definitions include category, price, stock threshold, weight, and extensible JSON properties.
 
-## Item Types
+## Trade and Carrying Capacity
 
-1. **Weapons:** Swords, bows, staffs, etc., with various damage and properties.
-2. **Armor:** Helmets, shields, and armor pieces that provide protection.
-3. **Consumables:** Potions, food, and scrolls that provide temporary benefits.
-4. **Quest Items:** Special items needed for specific events or missions.
-5. **Currency:** Gold and other valuables used for trading and services.
+- Shop definitions are tier-specific and editable through Django admin/content packs.
+- Buying checks availability and funds; selling checks owned quantity. Both are atomic and logged.
+- Carry weight influences travel and expedition penalties.
+- Crafting recipes consume defined ingredients and grant defined outputs atomically.
 
-## Crafting and Upgrading
+## Content Portability
 
-- Certain items can be combined or upgraded to create new, more powerful items.
-- Crafting recipes are learned through quests or interactions with NPCs.
-
-## Weight and Encumbrance
-
-- Each item has a weight value that contributes to the hero's total encumbrance.
-- Heroes with high encumbrance suffer penalties to movement and agility.
+Item, shop, and recipe definitions can be included in JSON content packs. Inventory does not implement weapon damage, equipment slots, quest-item locks, or tactical effects.

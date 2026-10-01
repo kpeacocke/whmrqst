@@ -49,10 +49,7 @@ db.sqlite3
 *.sqlite3
 media/
 staticfiles/
-
-# Legacy Flask artefacts
-instance/
-.webassets-cache
+backups/
 
 # Environment and secrets
 .env
@@ -92,6 +89,3 @@ Desktop.ini
 *.bak
 *.backup
 *.old
-
-# Snyk local instruction sync artefact
-.github/instructions/snyk_rules.instructions.md

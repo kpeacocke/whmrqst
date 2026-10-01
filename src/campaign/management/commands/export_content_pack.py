@@ -8,10 +8,12 @@ from campaign.models import (
     ContentPack,
     CraftingRecipeDef,
     ExpeditionDef,
+    GameRuleDef,
     HazardDef,
     ItemDef,
     SettlementEventDef,
     SettlementLocationDef,
+    ShopDef,
     SkillDef,
 )
 
@@ -90,6 +92,16 @@ class Command(BaseCommand):
             "crafting_recipes": list(
                 CraftingRecipeDef.objects.filter(definition__source=source).values(
                     "code", "name", "definition"
+                )
+            ),
+            "game_rules": list(
+                GameRuleDef.objects.filter(definition__source=source).values(
+                    "code", "name", "definition"
+                )
+            ),
+            "shops": list(
+                ShopDef.objects.filter(stock_table__source=source).values(
+                    "name", "settlement_size", "stock_table"
                 )
             ),
         }

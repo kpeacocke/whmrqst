@@ -13,9 +13,11 @@ RUN python -m pip install --no-cache-dir -r /app/requirements.txt gunicorn==23.0
 
 COPY manage.py /app/manage.py
 COPY src /app/src
-COPY config /app/config
 
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+RUN adduser -u 5678 --disabled-password --gecos "" appuser \
+    && chown -R appuser /app \
+    && python manage.py collectstatic --noinput \
+    && chown -R appuser /app/staticfiles
 USER 5678:5678
 
 EXPOSE 8000

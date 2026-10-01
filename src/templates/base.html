@@ -6,7 +6,7 @@
     <title>{% block title %}Quest Between{% endblock %}</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap">
     <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body hx-boost="true">
@@ -16,6 +16,15 @@
             <a href="/">Campaigns</a>
             <a href="/gm/">GM Console</a>
             <a href="/admin/">Admin</a>
+            {% if user.is_authenticated %}
+            <span class="small-note">{{ user.get_username }}</span>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn">Sign out</button>
+            </form>
+            {% else %}
+            <a href="{% url 'login' %}">Sign in</a>
+            {% endif %}
         </nav>
     </header>
     <main class="shell">

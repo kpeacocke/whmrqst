@@ -65,6 +65,7 @@ class HeroCreateForm(forms.ModelForm):
 
 class TravelForm(forms.Form):
     settlement_size = forms.ChoiceField(choices=HazardDef.SettlementSize.choices)
+    settlement_name = forms.CharField(max_length=120, required=False)
 
 
 class ExpeditionForm(forms.Form):
@@ -84,7 +85,6 @@ class ShopTransactionForm(forms.Form):
         SELL = "sell", "Sell"
 
     transaction_type = forms.ChoiceField(choices=TransactionType.choices)
-    settlement_size = forms.ChoiceField(choices=HazardDef.SettlementSize.choices)
     item_def = forms.ModelChoiceField(queryset=ItemDef.objects.none())
     quantity = forms.IntegerField(min_value=1, max_value=99, initial=1)
 
@@ -104,11 +104,6 @@ class HeroActionForm(forms.Form):
             ("train", "Train"),
             ("special", "Visit Special Location"),
         ]
-    )
-    settlement_size = forms.ChoiceField(
-        choices=HazardDef.SettlementSize.choices,
-        required=False,
-        initial="town",
     )
 
     def __init__(self, *args, **kwargs):

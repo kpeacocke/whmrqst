@@ -9,6 +9,11 @@ urlpatterns = [
     path("campaign/import/", views.import_campaign, name="import_campaign"),
     path("campaign/<int:campaign_id>/", views.campaign_detail, name="campaign_detail"),
     path(
+        "campaign/<int:campaign_id>/heroes/<int:hero_id>/",
+        views.hero_detail,
+        name="hero_detail",
+    ),
+    path(
         "campaign/<int:campaign_id>/rename/",
         views.rename_campaign,
         name="rename_campaign",

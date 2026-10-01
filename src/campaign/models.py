@@ -29,10 +29,19 @@ class Campaign(TimeStampedModel):
 
 
 class Party(TimeStampedModel):
+    class SettlementSize(models.TextChoices):
+        VILLAGE = "village", "Village"
+        TOWN = "town", "Town"
+        CITY = "city", "City"
+
     campaign = models.ForeignKey(
         Campaign, on_delete=models.CASCADE, related_name="parties"
     )
     name = models.CharField(max_length=120)
+    current_settlement_size = models.CharField(
+        max_length=20, choices=SettlementSize.choices, default=SettlementSize.VILLAGE
+    )
+    current_location_name = models.CharField(max_length=120, default="Village")
     gold = models.PositiveIntegerField(default=0)
     supplies = models.PositiveIntegerField(default=0)
     morale = models.IntegerField(default=0)
@@ -79,6 +88,15 @@ class ContentPack(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} v{self.version}"
+
+
+class GameRuleDef(TimeStampedModel):
+    code = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=120)
+    definition = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return self.name
 
 
 class ItemDef(TimeStampedModel):

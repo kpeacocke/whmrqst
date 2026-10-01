@@ -7,6 +7,7 @@ from .models import (
     CraftingRecipeDef,
     Expedition,
     ExpeditionDef,
+    GameRuleDef,
     HazardDef,
     Hero,
     HeroSkill,
@@ -62,6 +63,12 @@ class HeroAdmin(admin.ModelAdmin):
 class ContentPackAdmin(admin.ModelAdmin):
     list_display = ("name", "version", "is_active", "updated_at")
     search_fields = ("name", "version")
+
+
+@admin.register(GameRuleDef)
+class GameRuleDefAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "updated_at")
+    search_fields = ("name", "code")
 
 
 @admin.register(HazardDef)

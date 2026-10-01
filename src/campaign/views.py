@@ -45,6 +45,8 @@ from campaign.models import (
 from campaign.services.crafting import resolve_crafting
 from campaign.services.expedition import resolve_expedition
 from campaign.services.economy import process_shop_transaction
+from campaign.services.crafting import get_hero_carry_capacity, get_hero_carry_weight
+from campaign.services.audit import log_campaign_mutation
 from campaign.services.settlement import resolve_settlement_action
 from campaign.services.travel import resolve_travel_hazards
 
@@ -190,6 +192,8 @@ def _serialise_campaign(campaign: Campaign) -> dict[str, Any]:
             {
                 "legacy_id": int(party.pk),
                 "name": party.name,
+                "current_settlement_size": party.current_settlement_size,
+                "current_location_name": party.current_location_name,
                 "gold": party.gold,
                 "supplies": party.supplies,
                 "morale": party.morale,
@@ -301,6 +305,12 @@ def _import_parties(
         party = Party.objects.create(
             campaign=imported_campaign,
             name=str(party_data.get("name", "Imported Party")),
+            current_settlement_size=str(
+                party_data.get("current_settlement_size", Party.SettlementSize.VILLAGE)
+            ),
+            current_location_name=str(
+                party_data.get("current_location_name", "Village")
+            ),
             gold=_parse_int(party_data.get("gold", 0)) or 0,
             supplies=_parse_int(party_data.get("supplies", 0)) or 0,
             morale=_parse_int(party_data.get("morale", 0)) or 0,
@@ -465,7 +475,32 @@ def _import_step_logs(
 
 
 @transaction.atomic
-def _import_campaign_payload(payload: dict[str, Any]) -> Campaign:
+def _import_campaign_payload(
+    payload: dict[str, Any], owner: Any | None = None
+) -> Campaign:
+    parties_payload = payload.get("parties", [])
+    heroes_payload = payload.get("heroes", [])
+    if not isinstance(parties_payload, list):
+        raise ValueError("Campaign parties must be provided as a list.")
+    valid_party_ids = {
+        _parse_int(party_data.get("legacy_id"))
+        for party_data in parties_payload
+        if isinstance(party_data, dict)
+        and _parse_int(party_data.get("legacy_id")) is not None
+    }
+    if len(valid_party_ids) > 1:
+        raise ValueError("A campaign snapshot can contain at most one party.")
+    if not isinstance(heroes_payload, list):
+        raise ValueError("Campaign heroes must be provided as a list.")
+    importable_hero_count = sum(
+        isinstance(hero_data, dict)
+        and _parse_int(hero_data.get("legacy_id")) is not None
+        and _parse_int(hero_data.get("party_legacy_id")) in valid_party_ids
+        for hero_data in heroes_payload
+    )
+    if importable_hero_count > 4:
+        raise ValueError("A party snapshot can contain at most four heroes.")
+
     campaign_data = payload.get("campaign", {})
     source_name = (
         str(campaign_data.get("name", "Imported Campaign")).strip()
@@ -474,11 +509,13 @@ def _import_campaign_payload(payload: dict[str, Any]) -> Campaign:
     source_seed = (
         str(campaign_data.get("seed", "imported-seed")).strip() or "imported-seed"
     )
+    current_day = _import_campaign_day(campaign_data.get("current_day", 1), 1)
     imported_campaign = Campaign.objects.create(
         name=f"{source_name} (Imported)",
         seed=_build_unique_import_seed(source_seed),
-        current_day=_import_campaign_day(campaign_data.get("current_day", 1), 1),
-        current_week=_import_campaign_day(campaign_data.get("current_week", 1), 1),
+        owner=owner,
+        current_day=current_day,
+        current_week=((current_day - 1) // 7) + 1,
         is_active=bool(campaign_data.get("is_active", True)),
     )
 
@@ -488,6 +525,16 @@ def _import_campaign_payload(payload: dict[str, Any]) -> Campaign:
     _import_hero_skills(payload, hero_map)
     _import_expeditions(payload, imported_campaign, party_map)
     _import_step_logs(payload, imported_campaign, party_map, hero_map)
+    log_campaign_mutation(
+        imported_campaign,
+        "import",
+        {
+            "parties_imported": len(party_map),
+            "heroes_imported": len(hero_map),
+            "step_logs_imported": len(payload.get("step_logs", [])),
+        },
+        f"Campaign {imported_campaign.name} imported from a JSON snapshot.",
+    )
 
     return imported_campaign
 
@@ -517,6 +564,7 @@ def _get_visible_campaigns(request: HttpRequest):
     return campaigns.filter(owner__isnull=True)
 
 
+@transaction.atomic
 @require_http_methods(["GET", "POST"])
 def dashboard(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
@@ -526,6 +574,12 @@ def dashboard(request: HttpRequest) -> HttpResponse:
             if request.user.is_authenticated:
                 campaign.owner = request.user
             campaign.save()
+            log_campaign_mutation(
+                campaign,
+                "create",
+                {"name": campaign.name},
+                f"Campaign {campaign.name} created.",
+            )
             return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign.id)
     else:
         form = CampaignCreateForm()
@@ -536,6 +590,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     )
 
 
+@transaction.atomic
 @require_http_methods(["POST"])
 def import_campaign(request: HttpRequest) -> HttpResponse:
     raw_payload = request.POST.get("payload", "")
@@ -556,11 +611,18 @@ def import_campaign(request: HttpRequest) -> HttpResponse:
         messages.error(request, "Import payload must be a JSON object.")
         return redirect(ROUTE_DASHBOARD)
 
-    imported_campaign = _import_campaign_payload(payload)
+    try:
+        imported_campaign = _import_campaign_payload(
+            payload, request.user if request.user.is_authenticated else None
+        )
+    except ValueError as error:
+        messages.error(request, str(error))
+        return redirect(ROUTE_DASHBOARD)
     messages.success(request, f"Imported campaign: {imported_campaign.name}")
     return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=imported_campaign.pk)
 
 
+@transaction.atomic
 @require_http_methods(["GET", "POST"])
 def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = _get_campaign_for_request(request, campaign_id)
@@ -574,12 +636,27 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
         if create_type == "party":
             party_form = PartyCreateForm(request.POST, campaign=campaign)
             if party_form.is_valid():
-                party_form.save()
+                party = party_form.save()
+                log_campaign_mutation(
+                    campaign,
+                    "party_created",
+                    {"party_name": party.name},
+                    f"Party {party.name} joined the campaign.",
+                    party=party,
+                )
                 return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
         if create_type == "hero":
             hero_form = HeroCreateForm(request.POST, party=party)
             if hero_form.is_valid():
                 created_hero = hero_form.save()
+                log_campaign_mutation(
+                    campaign,
+                    "hero_created",
+                    {"hero_name": created_hero.name},
+                    f"{created_hero.name} joined {created_hero.party.name}.",
+                    party=created_hero.party,
+                    hero=created_hero,
+                )
                 return redirect(
                     ROUTE_CAMPAIGN_DETAIL, campaign_id=created_hero.party.campaign_id
                 )
@@ -615,6 +692,7 @@ def campaign_detail(request: HttpRequest, campaign_id: int) -> HttpResponse:
     )
 
 
+@transaction.atomic
 @require_http_methods(["POST"])
 def rename_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
     campaign = _get_campaign_for_request(request, campaign_id)
@@ -625,6 +703,12 @@ def rename_campaign(request: HttpRequest, campaign_id: int) -> HttpResponse:
 
     campaign.name = new_name
     campaign.save(update_fields=["name", "updated_at"])
+    log_campaign_mutation(
+        campaign,
+        "rename",
+        {"new_name": campaign.name},
+        f"Campaign renamed to {campaign.name}.",
+    )
     messages.success(request, f"Campaign renamed to {new_name}.")
     return redirect(ROUTE_CAMPAIGN_DETAIL, campaign_id=campaign_id)
 
@@ -686,7 +770,8 @@ def resolve_travel(request: HttpRequest, campaign_id: int) -> HttpResponse:
     form = TravelForm(request.POST)
     if form.is_valid():
         settlement_size = form.cleaned_data["settlement_size"]
-        result = resolve_travel_hazards(party, settlement_size)
+        settlement_name = form.cleaned_data.get("settlement_name", "").strip()
+        result = resolve_travel_hazards(party, settlement_size, settlement_name or None)
         hazard_count = len(result.get("resolved_hazards", []))
         messages.info(
             request,
@@ -706,8 +791,9 @@ def resolve_hero_action(request: HttpRequest, campaign_id: int) -> HttpResponse:
     if form.is_valid():
         hero = form.cleaned_data["hero"]
         action_type = form.cleaned_data["action_type"]
-        settlement_size = form.cleaned_data.get("settlement_size") or "town"
-        result = resolve_settlement_action(hero, action_type, settlement_size)
+        result = resolve_settlement_action(
+            hero, action_type, party.current_settlement_size
+        )
         narrative = result.get("action_effects", {}).get("narrative", "")
         if narrative:
             messages.success(request, narrative)
@@ -725,7 +811,7 @@ def resolve_shop_transaction(request: HttpRequest, campaign_id: int) -> HttpResp
     if form.is_valid():
         result = process_shop_transaction(
             party=party,
-            settlement_size=form.cleaned_data["settlement_size"],
+            settlement_size=party.current_settlement_size,
             transaction_type=form.cleaned_data["transaction_type"],
             item_def=form.cleaned_data["item_def"],
             quantity=form.cleaned_data["quantity"],
@@ -812,3 +898,30 @@ def seed_warhammer_content(request: HttpRequest) -> HttpResponse:
 def step_log_detail(request: HttpRequest, step_id: int) -> HttpResponse:
     step = get_object_or_404(StepLog, id=step_id)
     return render(request, "campaign/step_log_detail.html", {"step": step})
+
+
+@require_http_methods(["GET"])
+def hero_detail(request: HttpRequest, campaign_id: int, hero_id: int) -> HttpResponse:
+    campaign = _get_campaign_for_request(request, campaign_id)
+    hero = get_object_or_404(
+        Hero.objects.filter(party__campaign=campaign)
+        .select_related("party")
+        .prefetch_related("hero_skills__skill_def", "inventory_items__item_def"),
+        pk=hero_id,
+    )
+    recent_steps = StepLog.objects.filter(hero=hero).order_by("-created_at", "-id")[:20]
+    return render(
+        request,
+        "campaign/hero_detail.html",
+        {
+            "campaign": campaign,
+            "hero": hero,
+            "skills": HeroSkill.objects.filter(hero=hero).select_related("skill_def"),
+            "inventory": InventoryItem.objects.filter(hero=hero).select_related(
+                "item_def"
+            ),
+            "carry_weight": get_hero_carry_weight(hero),
+            "carry_capacity": get_hero_carry_capacity(hero),
+            "recent_steps": recent_steps,
+        },
+    )

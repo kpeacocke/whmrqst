@@ -72,6 +72,7 @@ def resolve_crafting(
     All state changes are logged to StepLog.
     Returns a dict with "status" of "success" or "rejected".
     """
+    party = Party.objects.select_for_update().get(pk=party.pk)
     campaign = party.campaign
     definition = recipe_def.definition or {}
     ingredients = definition.get("ingredients", [])
@@ -86,9 +87,11 @@ def resolve_crafting(
     for ingredient in ingredients:
         item_name = ingredient["item_name"]
         required_qty = int(ingredient.get("quantity", 1))
-        inv_row = InventoryItem.objects.filter(
-            party=party, hero=None, item_def__name=item_name
-        ).first()
+        inv_row = (
+            InventoryItem.objects.select_for_update()
+            .filter(party=party, hero=None, item_def__name=item_name)
+            .first()
+        )
         if not inv_row or inv_row.quantity < required_qty:
             effects = {
                 "status": "rejected",

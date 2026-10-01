@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ hero.name }} · {{ campaign.name }} · Quest Between{% endblock %}
+
+{% block content %}
+<section class="panel panel-elevated">
+    <p class="small-note"><a href="{% url 'campaign:campaign_detail' campaign_id=campaign.id %}">{{ campaign.name }}</a> / Hero</p>
+    <h1 class="heading-xl">{{ hero.name }}</h1>
+    <p class="lede">{{ hero.get_archetype_display }} · Level {{ hero.level }} · {% if hero.alive %}Alive{% else %}Dead{% endif %}</p>
+</section>
+
+<div class="action-grid">
+    <section class="panel">
+        <h2 class="heading-lg">Condition</h2>
+        <p>Health: {{ hero.current_health }} / {{ hero.max_health }}</p>
+        <p>Unavailable days: {{ hero.days_unavailable }}</p>
+        <p>Carry weight: {{ carry_weight }} / {{ carry_capacity }}</p>
+        {% if hero.conditions %}
+        <p>Conditions: {{ hero.conditions|join:", " }}</p>
+        {% else %}
+        <p>No active conditions.</p>
+        {% endif %}
+        {% if hero.stats %}
+        <h3 class="heading-md">Attributes</h3>
+        <dl>
+            {% for stat, value in hero.stats.items %}
+            <div><dt>{{ stat|title }}</dt><dd>{{ value }}</dd></div>
+            {% endfor %}
+        </dl>
+        {% endif %}
+    </section>
+
+    <section class="panel">
+        <h2 class="heading-lg">Skills</h2>
+        <ul class="record-list">
+            {% for hero_skill in skills %}
+            <li><strong>{{ hero_skill.skill_def.name }}</strong><span>{{ hero_skill.skill_def.description }}</span></li>
+            {% empty %}
+            <li>No skills learned.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="panel">
+        <h2 class="heading-lg">Inventory</h2>
+        <ul class="record-list">
+            {% for item in inventory %}
+            <li>{{ item.item_def.name }} <span>×{{ item.quantity }}</span></li>
+            {% empty %}
+            <li>No carried items.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="panel">
+        <h2 class="heading-lg">Chronicle</h2>
+        {% include "campaign/partials/chronicle_panel.html" with recent_steps=recent_steps %}
+    </section>
+</div>
+{% endblock %}

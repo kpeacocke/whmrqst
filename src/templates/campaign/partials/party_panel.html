@@ -1,6 +1,7 @@
 {% if party %}
 <div class="stat-block">
     <div><span>Party:</span> {{ party.name }}</div>
+    <div><span>Location:</span> {{ party.current_location_name }} · {{ party.get_current_settlement_size_display }}</div>
     <div><span>Gold:</span> {{ party.gold }}</div>
     <div><span>Supplies:</span> {{ party.supplies }}</div>
     <div><span>Morale:</span> {{ party.morale }}</div>
@@ -8,7 +9,7 @@
 <h3 class="heading-md">Heroes</h3>
 <ul class="record-list hero-list">
     {% for hero in party.heroes.all %}
-    <li>{% include "campaign/partials/hero_card.html" with hero=hero %}</li>
+    <li>{% include "campaign/partials/hero_card.html" with hero=hero campaign=campaign %}</li>
     {% empty %}
     <li>No heroes in party.</li>
     {% endfor %}

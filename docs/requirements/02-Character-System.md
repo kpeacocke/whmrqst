@@ -1,28 +1,24 @@
 # Character System
 
-## Character Creation
+## Hero Creation
 
-Players create a hero by selecting from various classes (Warrior, Wizard, Elf, Dwarf, etc.), each with unique abilities and starting attributes.
+Each hero belongs to the campaign party and uses one of the supported archetypes: Warrior, Ranger, Mage, or Priest. A party has one to four heroes.
 
-## Attributes
+## Persistent State
 
-- **Strength:** Determines melee damage and carrying capacity.
-- **Agility:** Affects dodging and initiative in combat.
-- **Intelligence:** Influences spellcasting and learning new skills.
-- **Charisma:** Impacts interactions with NPCs and influence in towns.
+- Name and archetype.
+- Level, health, stats, conditions, and alive/dead status.
+- Days unavailable and settlement-specific persistent effects.
+- Skills acquired through progression and stored as hero-skill records.
+- Items owned by the hero, distinct from shared party inventory.
 
-## Experience and Leveling
+## Progression and Recovery
 
-- Heroes gain experience points (XP) through completing quests, events, and other actions.
-- XP is used to level up, improving attributes and unlocking new skills or abilities.
+- Training costs party gold and consumes the hero's daily action.
+- Level advancement improves health and can grant an unlearned archetype skill.
+- Expeditions add progression and may cause health loss, conditions, or death.
+- Rest and healing recover health; unavailable heroes consume their daily action while recovering.
 
-## Skills and Abilities
+## Design Boundary
 
-- Each class has a unique set of skills and abilities.
-- Skills are acquired through training or leveling up.
-- Abilities include combat maneuvers, spells, or special actions.
-
-## Health and Status
-
-- **Health Points (HP):** Determines the hero's vitality.
-- **Status Effects:** Heroes can suffer from various conditions (poisoned, stunned, cursed) that affect their abilities and require specific actions to remove.
+Archetype skills are campaign content. This system does not define combat attributes, initiative, enemy turns, tactical abilities, or dungeon status rules.

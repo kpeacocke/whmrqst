@@ -1,24 +1,20 @@
-# Town Exploration
+# Settlement and Travel
 
-## Town Overview
+## Settlement Tiers
 
-Towns are the primary setting for this game phase. Heroes can visit various locations to rest, trade, and engage in unique encounters.
+Settlements are abstract campaign hubs, not explorable maps. Village, town, and city tiers determine travel hazard counts, available special locations, and shop availability.
 
-## Town Locations
+## Settlement Actions
 
-1. **Inn:** Rest, recover, and gather information.
-2. **Market:** Buy and sell goods, weapons, armor, and rare items.
-3. **Tavern:** Engage in rumors, find quests, and interact with NPCs.
-4. **Temple:** Heal wounds, remove curses, and receive blessings.
-5. **Guild:** Learn new skills, train abilities, and upgrade equipment.
-6. **Blacksmith:** Forge new items, repair weapons and armor.
+- Each living hero takes at most one action per campaign day.
+- Supported actions are rest, heal, train, and visit a special location; shopping and crafting are party-level actions.
+- A day advances after each living hero has acted or has been marked unavailable.
+- Settlement and weekly catastrophic events are selected from database definitions.
 
-## Random Events
+## Travel
 
-- Each time a hero visits a location, there is a chance for a random event, such as a robbery, a chance meeting with an NPC, or a mini-quest.
-- Events can affect the hero's health, reputation, and resources.
+- The player chooses a destination tier; travel hazards are resolved from seeded content.
+- Hazards can change party resources, injure a hero, add hazards, or alter subsequent campaign state.
+- Location availability and effects are defined in editable content records.
 
-## Reputation System
-
-- Heroes have a reputation score that influences their interactions with townsfolk and NPCs.
-- Reputation is affected by completing quests, helping or harming NPCs, and general behavior in the town.
+No town map, tile movement, NPC quest chain, or per-room exploration is part of this system.

@@ -2,15 +2,8 @@ from typing import Any
 
 from django.db import transaction
 
-from campaign.models import InventoryItem, ItemDef, Party, StepLog
+from campaign.models import InventoryItem, ItemDef, Party, ShopDef, StepLog
 from campaign.services.rng import DeterministicRng, derive_step_seed
-
-
-STOCK_DICE_BY_SETTLEMENT = {
-    "village": 1,
-    "town": 2,
-    "city": 3,
-}
 
 
 @transaction.atomic
@@ -23,6 +16,12 @@ def process_shop_transaction(
 ) -> dict[str, Any]:
     locked_party = Party.objects.select_for_update().get(pk=party.pk)
     campaign = locked_party.campaign
+    shop = (
+        ShopDef.objects.filter(settlement_size=settlement_size).order_by("id").first()
+    )
+    if shop is None:
+        raise ValueError(f"No shop is configured for {settlement_size}")
+
     sequence = StepLog.objects.filter(campaign=campaign).count() + 1
     actor_key = f"party:{locked_party.pk}"
     seed = derive_step_seed(
@@ -31,7 +30,18 @@ def process_shop_transaction(
     rng = DeterministicRng(seed)
 
     if transaction_type == "buy":
-        return _buy_item(locked_party, settlement_size, item_def, quantity, rng, seed)
+        availability_dice = int(shop.stock_table.get("availability_dice", 0))
+        if availability_dice < 1:
+            raise ValueError(f"Shop {shop.name} has invalid availability dice")
+        return _buy_item(
+            locked_party,
+            settlement_size,
+            item_def,
+            quantity,
+            availability_dice,
+            rng,
+            seed,
+        )
     if transaction_type == "sell":
         return _sell_item(locked_party, settlement_size, item_def, quantity, rng, seed)
     raise ValueError(f"Unsupported transaction type: {transaction_type}")
@@ -42,10 +52,10 @@ def _buy_item(
     settlement_size: str,
     item_def: ItemDef,
     quantity: int,
+    stock_dice_count: int,
     rng: DeterministicRng,
     seed: str,
 ) -> dict[str, Any]:
-    stock_dice_count = STOCK_DICE_BY_SETTLEMENT.get(settlement_size, 1)
     stock_rolls = [rng.d6() for _ in range(stock_dice_count)]
     # Stock value acts as the threshold difficulty for how many units can be found.
     stock_total = sum(stock_rolls)

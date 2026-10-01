@@ -1,22 +1,20 @@
-# Quest and Event System
+# Campaign Events
 
-## Quest Types
+## Settlement Events
 
-1. **Main Quests:** Advance the main storyline and character progression.
-2. **Side Quests:** Optional missions that offer rewards and lore.
-3. **Random Events:** Small encounters that add variety and immersion.
+- One weighted settlement event may resolve after each eligible hero action.
+- Definitions specify narrative text, weight, effects, and optional persistent rule flags.
+- Event effects are logged with their seed, rolls, target, and applied deltas.
 
-## Quest Structure
+## Catastrophic Events
 
-- Each quest has an objective, prerequisites, and rewards.
-- Quests may require multiple steps, such as finding an item or talking to specific NPCs.
+- A party-wide event can trigger at configured weekly boundaries after week two.
+- Effects may change party resources, price conditions, availability, or departure state.
+- Trigger timing and outcomes are stored in editable core rules/content definitions.
 
-## Random Events
+## Choices and Replay
 
-- Events are triggered based on location, time, and hero actions.
-- Events can be positive (finding treasure), negative (getting robbed), or neutral (meeting an NPC).
+- Every resolved event has a deterministic seed and a StepLog entry.
+- Results are visible in the campaign chronicle and included in campaign export.
 
-## Consequences and Choices
-
-- Player choices during quests and events can have long-term consequences.
-- Heroes may gain or lose reputation, acquire new allies, or face future challenges based on their actions.
+This product does not include main/side quest trees, NPC dialogue branches, enemy encounters, or a quest reputation system.

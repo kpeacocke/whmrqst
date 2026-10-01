@@ -1,22 +1,23 @@
 # Game Rules and Mechanics
 
-## Turn-Based Actions
+## Campaign Time and Actions
 
-- The game operates in turns. Each turn, the hero can perform one or more actions, such as visiting a location, interacting with an NPC, or managing inventory.
+- Campaign time is tracked in days and weeks.
+- Each living hero may resolve one settlement action per day; party actions are separately logged.
+- A day completes only after all living heroes have acted or taken an unavailable skip.
 
-## Resource Management
+## Resources and Determinism
 
-- Heroes must manage resources like health, stamina, gold, and inventory space.
-- Running out of critical resources can lead to negative consequences, such as failing quests or losing reputation.
+- The campaign tracks party gold, supplies, morale, hero health, conditions, and inventory.
+- Each state-changing gameplay service runs transactionally and records a StepLog.
+- A campaign seed and per-step sequence derive deterministic random outcomes; rolls and effects are persisted.
+- Rules, content, and balance tables are editable and portable through content packs.
 
-## Combat Mechanics
+## Expedition Resolution
 
-- While the game focuses on non-dungeon activities, some events may involve combat.
-- Combat is turn-based, with heroes and enemies taking actions in order of initiative.
-- Heroes can attack, use abilities, or attempt to flee.
+- Expeditions are off-screen simulations using party capability, objective, risk, and content definitions.
+- Outcomes can include rewards, supplies consumed, loot, injury, death, conditions, and progression.
 
-## Death and Injury
+## Explicit Exclusions
 
-- Heroes can be injured or killed during events or combat.
-- Severe injuries may require special treatment at a temple or from specific NPCs.
-- Death is permanent, requiring the player to create a new hero or load a previous save.
+No turn-based combat, enemy initiative, tactical actions, dungeon turns, or grid movement are implemented.

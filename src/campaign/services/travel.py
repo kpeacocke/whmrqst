@@ -2,23 +2,20 @@ from typing import Any, cast
 
 from django.db import transaction
 
-from campaign.models import HazardDef, Hero, Party, StepLog
+from campaign.models import Campaign, HazardDef, Hero, Party, StepLog
 from campaign.services.crafting import get_party_encumbrance_penalty
 from campaign.services.rng import DeterministicRng, derive_step_seed
+from campaign.services.rules import get_game_rules
 
 WHQ_SOURCE = "whq_roleplay_book"
 
 
-HAZARDS_BY_SETTLEMENT = {
-    "village": 2,
-    "town": 4,
-    "city": 6,
-}
-
-
 @transaction.atomic
-def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]:
-    campaign = party.campaign
+def resolve_travel_hazards(
+    party: Party, settlement_size: str, settlement_name: str | None = None
+) -> dict[str, Any]:
+    party = Party.objects.select_for_update().get(pk=party.pk)
+    campaign = Campaign.objects.select_for_update().get(pk=party.campaign.pk)
     hazards = list(HazardDef.objects.filter(definition__source=WHQ_SOURCE))
     if not hazards:
         hazards = list(HazardDef.objects.filter(settlement_size=settlement_size))
@@ -33,13 +30,18 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]
             hazards_by_roll[table_roll] = hazard
 
     encumbrance_penalty = get_party_encumbrance_penalty(party)
-    pending_hazards = HAZARDS_BY_SETTLEMENT.get(settlement_size, 2) + int(
+    travel_rules = get_game_rules().get("travel", {})
+    hazard_counts = travel_rules.get("hazards_by_settlement", {})
+    if settlement_size not in hazard_counts:
+        raise ValueError(f"No travel hazard count configured for {settlement_size}")
+    pending_hazards = int(hazard_counts[settlement_size]) + int(
         encumbrance_penalty["movement_penalty"]
     )
     resolved: list[dict[str, Any]] = []
     safety_counter = 0
+    maximum_hazards = int(travel_rules.get("maximum_hazards_per_trip", 100))
 
-    while pending_hazards > 0 and safety_counter < 100:
+    while pending_hazards > 0 and safety_counter < maximum_hazards:
         safety_counter += 1
         sequence = StepLog.objects.filter(campaign=campaign).count() + 1
         seed = derive_step_seed(
@@ -89,8 +91,37 @@ def resolve_travel_hazards(party: Party, settlement_size: str) -> dict[str, Any]
             }
         )
 
+    destination_name = (settlement_name or settlement_size.title()).strip()[:120]
+    party.current_settlement_size = settlement_size
+    party.current_location_name = destination_name
+    party.save(
+        update_fields=[
+            "current_settlement_size",
+            "current_location_name",
+            "updated_at",
+        ]
+    )
+    sequence = StepLog.objects.filter(campaign=campaign).count() + 1
+    arrival_seed = derive_step_seed(
+        campaign.seed, "travel", "arrival", f"party:{party.pk}", sequence
+    )
+    StepLog.objects.create(
+        campaign=campaign,
+        party=party,
+        step_type="travel",
+        action_type="arrival",
+        rng_seed=arrival_seed,
+        dice_rolled=[],
+        effects_applied={
+            "settlement_size": settlement_size,
+            "location_name": destination_name,
+        },
+        narrative=f"The party arrives at {destination_name}.",
+    )
+
     return {
         "settlement_size": settlement_size,
+        "settlement_name": destination_name,
         "encumbrance_penalty": encumbrance_penalty,
         "resolved_hazards": resolved,
         "party_gold": party.gold,

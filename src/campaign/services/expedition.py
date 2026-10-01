@@ -3,6 +3,7 @@ from typing import Any
 from django.db import transaction
 
 from campaign.models import (
+    Campaign,
     Expedition,
     ExpeditionDef,
     Hero,
@@ -13,35 +14,15 @@ from campaign.models import (
 )
 from campaign.services.crafting import get_party_encumbrance_penalty
 from campaign.services.rng import DeterministicRng, derive_step_seed
-
-
-RISK_CONFIG = {
-    "cautious": {
-        "reward_pct": 0.75,
-        "challenge_mod": -1,
-        "injury_mod": -1,
-        "morale_on_success": 0,
-    },
-    "standard": {
-        "reward_pct": 1.0,
-        "challenge_mod": 0,
-        "injury_mod": 0,
-        "morale_on_success": 1,
-    },
-    "reckless": {
-        "reward_pct": 1.4,
-        "challenge_mod": 2,
-        "injury_mod": 1,
-        "morale_on_success": 2,
-    },
-}
+from campaign.services.rules import get_game_rules
 
 
 @transaction.atomic
 def resolve_expedition(
     party: Party, expedition_def: ExpeditionDef, risk_level: str
 ) -> dict[str, Any]:
-    campaign = party.campaign
+    party = Party.objects.select_for_update().get(pk=party.pk)
+    campaign = Campaign.objects.select_for_update().get(pk=party.campaign.pk)
     living_heroes = _get_living_heroes(party)
 
     sequence = StepLog.objects.filter(campaign=campaign).count() + 1
@@ -49,7 +30,11 @@ def resolve_expedition(
         campaign.seed, "expedition", "run", f"party:{party.pk}", sequence
     )
     rng = DeterministicRng(seed)
-    config = RISK_CONFIG[risk_level]
+    expedition_rules = get_game_rules().get("expedition", {})
+    risk_profiles = expedition_rules.get("risk_profiles", {})
+    config = risk_profiles.get(risk_level)
+    if not isinstance(config, dict):
+        raise ValueError(f"No expedition risk profile is configured for {risk_level}")
     encumbrance_penalty = get_party_encumbrance_penalty(party)
 
     challenge_roll = rng.randint(2, 12)
@@ -66,7 +51,7 @@ def resolve_expedition(
     base_reward = int(reward_roll * float(config["reward_pct"]))
     gold_delta = base_reward if is_success else max(0, base_reward // 3)
 
-    supply_cost = _get_supply_cost(expedition_def, risk_level)
+    supply_cost = _get_supply_cost(expedition_def, config)
     dice_rolled = [
         {"die": "2d6", "result": challenge_roll, "context": "challenge-roll"},
         {"die": "d100", "result": reward_roll, "context": "reward-roll"},
@@ -75,6 +60,7 @@ def resolve_expedition(
         living_heroes=living_heroes,
         expedition_def=expedition_def,
         config=config,
+        minimum_injury_target=int(expedition_rules.get("minimum_injury_target", 2)),
         encumbrance_penalty=encumbrance_penalty,
         rng=rng,
         dice_rolled=dice_rolled,
@@ -82,7 +68,9 @@ def resolve_expedition(
 
     party.gold += gold_delta
     party.supplies = max(0, party.supplies - supply_cost)
-    morale_delta = int(config["morale_on_success"]) if is_success else -1
+    morale_delta = int(
+        config["morale_on_success"] if is_success else config["morale_on_failure"]
+    )
     party.morale += morale_delta
     party.save(update_fields=["gold", "supplies", "morale", "updated_at"])
 
@@ -144,7 +132,7 @@ def resolve_expedition(
 
 
 def _get_living_heroes(party: Party) -> list[Hero]:
-    heroes = list(Hero.objects.filter(party=party).order_by("id"))
+    heroes = list(Hero.objects.select_for_update().filter(party=party).order_by("id"))
     if not heroes:
         raise ValueError("Party must have at least one hero")
 
@@ -154,19 +142,16 @@ def _get_living_heroes(party: Party) -> list[Hero]:
     return living_heroes
 
 
-def _get_supply_cost(expedition_def: ExpeditionDef, risk_level: str) -> int:
-    supply_cost = max(1, int(expedition_def.base_supply_cost))
-    if risk_level == "cautious":
-        return max(1, supply_cost - 1)
-    if risk_level == "reckless":
-        return supply_cost + 1
-    return supply_cost
+def _get_supply_cost(expedition_def: ExpeditionDef, risk_config: dict[str, Any]) -> int:
+    modifier = int(risk_config["supply_cost_modifier"])
+    return max(1, int(expedition_def.base_supply_cost) + modifier)
 
 
 def _resolve_expedition_injuries(
     living_heroes: list[Hero],
     expedition_def: ExpeditionDef,
     config: dict[str, float | int],
+    minimum_injury_target: int,
     encumbrance_penalty: dict[str, int],
     rng: DeterministicRng,
     dice_rolled: list[dict[str, Any]],
@@ -175,7 +160,7 @@ def _resolve_expedition_injuries(
     deaths: list[dict[str, Any]] = []
     conditions_gained: list[dict[str, Any]] = []
     injury_target = max(
-        2,
+        minimum_injury_target,
         int(expedition_def.base_injury_risk)
         + int(config["injury_mod"])
         + int(encumbrance_penalty["agility_penalty"]),

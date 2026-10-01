@@ -12,6 +12,7 @@ from campaign.models import (
     StepLog,
 )
 from campaign.services.rng import DeterministicRng, derive_step_seed
+from campaign.services.rules import get_game_rules
 
 DAILY_ACTION_TYPES = ("rest", "heal", "train", "special")
 COMPLETION_ACTION_TYPES = (*DAILY_ACTION_TYPES, "unavailable")
@@ -154,7 +155,13 @@ def _advance_day_if_complete(
         narrative=f"Day {campaign_day} is complete.",
     )
 
-    if campaign_day >= 14 and campaign_day % 7 == 0:
+    settlement_rules = get_game_rules().get("settlement", {})
+    catastrophic_start_day = int(settlement_rules["catastrophic_start_day"])
+    catastrophic_interval = int(settlement_rules["catastrophic_interval_days"])
+    if (
+        campaign_day >= catastrophic_start_day
+        and (campaign_day - catastrophic_start_day) % catastrophic_interval == 0
+    ):
         return _resolve_catastrophic_event(party, campaign_day)
     return None
 
@@ -400,56 +407,53 @@ def _apply_settlement_rule_flag(hero: Hero, rule_flag: str | None) -> None:
     if not rule_flag:
         return
 
-    party = hero.party
-    if rule_flag == "future_income":
-        hero.investment_active = True
-    elif rule_flag in {"forced_departure_or_delay", "may_force_departure"}:
-        party.forced_departure = True
-    elif rule_flag == "service_delay":
-        hero.days_unavailable += 7
-    elif rule_flag == "bed_rest":
-        hero.days_unavailable += 2
-    elif rule_flag == "pet_dog":
-        hero.has_pet_dog = True
-    elif rule_flag == "jail":
-        hero.days_unavailable += 1
-    elif rule_flag == "reroll_attack_once":
-        hero.temple_reroll_charges += 1
-    elif rule_flag == "possible_disguise_or_exile":
-        hero.in_disguise = True
-    elif rule_flag == "recovery_delay":
-        hero.days_unavailable += 1
+    rule_flags = get_game_rules().get("settlement", {}).get("rule_flags", {})
+    _apply_configured_state_changes(hero.party, hero, rule_flags.get(rule_flag, []))
 
-    hero.save(
-        update_fields=[
+
+def _apply_catastrophic_state(party: Party, table_roll: str) -> None:
+    state_changes = (
+        get_game_rules()
+        .get("settlement", {})
+        .get("catastrophic_state_by_table_roll", {})
+    )
+    _apply_configured_state_changes(party, None, state_changes.get(table_roll, []))
+
+
+def _apply_configured_state_changes(
+    party: Party, hero: Hero | None, changes: list[dict[str, Any]]
+) -> None:
+    allowed_fields = {
+        "hero": {
             "investment_active",
             "days_unavailable",
             "has_pet_dog",
             "temple_reroll_charges",
             "in_disguise",
-            "updated_at",
-        ]
-    )
-    party.save(update_fields=["forced_departure", "updated_at"])
-
-
-def _apply_catastrophic_state(party: Party, table_roll: str) -> None:
-    if table_roll == "3":
-        party.forced_departure = True
-    elif table_roll == "5":
-        party.hardship_price_multiplier = 4
-    elif table_roll == "10":
-        party.disease_risk_active = True
-    elif table_roll == "11":
-        party.forced_departure = True
-    elif table_roll == "12":
-        party.disease_risk_active = True
-
-    party.save(
-        update_fields=[
-            "hardship_price_multiplier",
+        },
+        "party": {
             "forced_departure",
+            "hardship_price_multiplier",
             "disease_risk_active",
-            "updated_at",
-        ]
-    )
+        },
+    }
+    updated_fields: dict[str, set[str]] = {"hero": set(), "party": set()}
+    targets = {"party": party, "hero": hero}
+
+    for change in changes:
+        target_name = str(change.get("target", ""))
+        target = targets.get(target_name)
+        field_name = str(change.get("field", ""))
+        if target is None or field_name not in allowed_fields.get(target_name, set()):
+            continue
+
+        value = change.get("value")
+        if change.get("operation") == "add":
+            value = getattr(target, field_name) + value
+        setattr(target, field_name, value)
+        updated_fields[target_name].add(field_name)
+
+    if hero is not None and updated_fields["hero"]:
+        hero.save(update_fields=[*updated_fields["hero"], "updated_at"])
+    if updated_fields["party"]:
+        party.save(update_fields=[*updated_fields["party"], "updated_at"])

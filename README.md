@@ -53,23 +53,59 @@ The simplest way to run the application is via Docker Compose. This automaticall
    it to forward `X-Forwarded-Proto`. The Django production settings redirect
    HTTP to HTTPS and use secure cookies.
 
+   Create the first administrator account:
+
+   ```bash
+   docker compose -f docker/docker-compose.yml exec web python manage.py createsuperuser
+   ```
+
    **Debug mode** (with debugpy on port 5679):
 
    ```bash
    docker compose -f docker/docker-compose.debug.yml up -d
    ```
 
-4. **Access the Application**
+4. **Create the initial administrator account**
+
+   ```bash
+   docker compose -f docker/docker-compose.yml exec web python manage.py createsuperuser
+   ```
+
+   Sign in at `/accounts/login/`.
+
+5. **Access the Application**
 
    Open your browser and navigate to [http://localhost:8000](http://localhost:8000).
 
-5. **Stop the Stack**
+6. **Stop the Stack**
 
    ```bash
    docker compose -f docker/docker-compose.yml down
    # or for debug:
    docker compose -f docker/docker-compose.debug.yml down
    ```
+
+### Database Backup and Restore
+
+Store backups outside Git; the `backups/` directory is ignored by Git.
+
+```bash
+# PowerShell
+New-Item -ItemType Directory -Force backups
+# macOS/Linux
+mkdir -p backups
+docker compose -f docker/docker-compose.yml exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > /tmp/questbetween.sql'
+docker compose -f docker/docker-compose.yml cp db:/tmp/questbetween.sql ./backups/questbetween-backup.sql
+```
+
+To restore, stop the web service first. The restore replaces the current database:
+
+```bash
+docker compose -f docker/docker-compose.yml stop web
+docker compose -f docker/docker-compose.yml cp ./backups/questbetween-backup.sql db:/tmp/questbetween.sql
+docker compose -f docker/docker-compose.yml exec -T db sh -c 'dropdb --if-exists -U "$POSTGRES_USER" "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB" && psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$POSTGRES_DB" < /tmp/questbetween.sql'
+docker compose -f docker/docker-compose.yml start web
+```
 
 ### Local Development (Without Docker)
 
@@ -98,6 +134,8 @@ If you prefer to develop outside containers:
 
    ```bash
    python manage.py migrate
+   python manage.py seed_warhammer_content
+   python manage.py createsuperuser
    ```
 
 4. **Start the Development Server**
@@ -154,31 +192,6 @@ python manage.py test campaign --settings=questbetween.settings_test
 ```
 
 Ensure all tests pass before submitting a pull request.
-
-### Security Scanning (Snyk)
-
-You can run Snyk checks locally (Windows PowerShell) using Docker:
-
-1. Create a Snyk account and API token.
-2. Set your token in the current shell:
-
-   ```powershell
-   $env:SNYK_TOKEN="your-token"
-   ```
-
-3. Run the scanner script:
-
-   ```powershell
-   .\scripts\snyk_scan.ps1
-   ```
-
-   Optional severity threshold:
-
-   ```powershell
-   .\scripts\snyk_scan.ps1 -SeverityThreshold medium
-   ```
-
-CI also runs dependency and code scans via `.github/workflows/snyk.yml` when `SNYK_TOKEN` is configured in repository secrets.
 
 ## Security
 

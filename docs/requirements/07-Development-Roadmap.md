@@ -1,28 +1,27 @@
 # Development Roadmap
 
-## Phase 1: Core Systems
+## MVP: Campaign Loop
 
-- Implement character creation and management.
-- Develop town exploration and basic event systems.
-- Create initial locations and NPC interactions.
+- [x] Django/PostgreSQL application, campaign persistence, admin, and Docker Compose.
+- [x] Campaign and party creation, one-to-four hero roster, authentication, ownership checks, import/export, and a hero sheet.
+- [x] Deterministic expedition simulation with risk profiles and StepLog outcomes.
+- [x] Travel hazards with persisted destination, settlement actions, daily party completion, and weekly events.
+- [x] Database-driven rules, hazards, event definitions, locations, items, shops, skills, and recipes; safe first-run content bootstrap.
+- [x] Trade, inventory weight, crafting, training, injury, recovery, and progression.
+- [x] Server-rendered campaign UI and campaign-cycle integration coverage.
+- [x] CI checks for migration drift, Django tests, pytest, Ruff, and Mypy.
 
-## Phase 2: Quests and Events
+## Release Hardening
 
-- Design and implement main and side quests.
-- Develop random event system with a variety of outcomes.
+- [x] Add PostgreSQL-backed CI integration coverage in addition to SQLite service tests.
+- [x] Verify PostgreSQL row locking prevents concurrent shop double-spend.
+- [x] Cover concurrent shop, expedition, travel, crafting, and settlement mutations plus rollback failures for gameplay services on PostgreSQL.
+- [x] Exercise backup and restore against an isolated PostgreSQL database; document host-operated backup/restore.
+- [x] Smoke-check campaign and hero-sheet rendering at desktop/mobile widths; verify static assets load and no horizontal overflow occurs.
+- [ ] Conduct manual usability testing and incorporate player feedback.
 
-## Phase 3: Inventory and Crafting
+## Explicitly Out of Scope
 
-- Implement inventory system with weight and encumbrance mechanics.
-- Add crafting and upgrading mechanics.
+- Dungeon maps, grid movement, tactical combat, quests, multiplayer, and cloud-only features.
 
-## Phase 4: Testing and Polish
-
-- Conduct playtesting and gather feedback.
-- Refine UI/UX and game mechanics based on testing results.
-- Polish graphics, sound, and final details.
-
-## Phase 5: Launch and Expansion
-
-- Launch initial version of the game.
-- Plan and develop future expansions, such as additional towns, classes, and questlines.
+The MVP acceptance gate is a new campaign completing expedition → travel → settlement → trade/crafting → export/import, with every result persisted and logged deterministically.

@@ -9,10 +9,12 @@ from campaign.models import (
     ContentPack,
     CraftingRecipeDef,
     ExpeditionDef,
+    GameRuleDef,
     HazardDef,
     ItemDef,
     SettlementEventDef,
     SettlementLocationDef,
+    ShopDef,
     SkillDef,
 )
 
@@ -40,6 +42,8 @@ class Command(BaseCommand):
         self._upsert_skills(payload.get("skills", []))
         self._upsert_expeditions(payload.get("expeditions", []))
         self._upsert_crafting_recipes(payload.get("crafting_recipes", []))
+        self._upsert_game_rules(payload.get("game_rules", []))
+        self._upsert_shops(payload.get("shops", []))
 
         self.stdout.write(self.style.SUCCESS("Content pack import applied."))
 
@@ -154,5 +158,25 @@ class Command(BaseCommand):
                 defaults={
                     "name": row["name"],
                     "definition": row.get("definition", {}),
+                },
+            )
+
+    def _upsert_game_rules(self, rows):
+        for row in rows:
+            GameRuleDef.objects.update_or_create(
+                code=row["code"],
+                defaults={
+                    "name": row["name"],
+                    "definition": row.get("definition", {}),
+                },
+            )
+
+    def _upsert_shops(self, rows):
+        for row in rows:
+            ShopDef.objects.update_or_create(
+                name=row["name"],
+                defaults={
+                    "settlement_size": row["settlement_size"],
+                    "stock_table": row.get("stock_table", {}),
                 },
             )

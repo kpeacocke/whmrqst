@@ -16,4 +16,5 @@
     </ul>
     {% endif %}
     {% endwith %}
+    <a href="{% url 'campaign:hero_detail' campaign_id=campaign.id hero_id=hero.id %}">Open hero sheet</a>
 </article>
